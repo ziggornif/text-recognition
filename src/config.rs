@@ -282,4 +282,54 @@ impl OcrConfig {
             tesseract_variables: HashMap::new(),
         }
     }
+
+    /// Crée une configuration préréglée optimisée pour les lignes de texte uniques.
+    ///
+    /// Ce preset est idéal pour :
+    /// - Champs de formulaire
+    /// - Titres et en-têtes
+    /// - Lignes de tableau
+    /// - Labels et étiquettes
+    /// - Codes-barres alphanumériques
+    ///
+    /// # Configuration appliquée
+    ///
+    /// - **DPI** : 150 (résolution intermédiaire)
+    /// - **Variables Tesseract** :
+    ///   - Aucune variable spécifique (utilise les paramètres par défaut)
+    ///
+    /// # Mode PSM recommandé
+    ///
+    /// Pour utiliser ce preset efficacement, combinez-le avec :
+    /// - `PageSegMode::SingleLine` (mode 7) : Traite l'image comme une seule ligne (recommandé)
+    /// - `PageSegMode::RawLine` (mode 13) : Ligne brute sans hacks spécifiques
+    ///
+    /// # Exemple
+    ///
+    /// ```
+    /// use text_recognition::config::OcrConfig;
+    ///
+    /// // Créer un preset pour ligne de texte unique
+    /// let config = OcrConfig::single_line_preset();
+    /// assert_eq!(config.language, "fra");
+    /// assert_eq!(config.dpi, 150);
+    /// ```
+    ///
+    /// Pour utiliser ce preset avec un moteur OCR :
+    ///
+    /// ```no_run
+    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::ocr::OcrEngine;
+    ///
+    /// let config = OcrConfig::single_line_preset();
+    /// let mut engine = OcrEngine::new(config)?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    pub fn single_line_preset() -> Self {
+        Self {
+            language: "fra".to_string(),
+            dpi: 150,
+            tesseract_variables: HashMap::new(),
+        }
+    }
 }
