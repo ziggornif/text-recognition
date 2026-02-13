@@ -20,10 +20,13 @@
 //!
 //! - `config` : Configuration du moteur OCR et modes de segmentation
 //! - `ocr` : Moteur OCR principal pour l'extraction de texte
+//! - `preprocessing` : Prétraitement d'images pour améliorer la qualité OCR
 
 pub mod config;
 pub mod ocr;
+pub mod preprocessing;
 
 // Exports publics pour faciliter l'utilisation de la bibliothèque
 pub use config::{OcrConfig, PageSegMode};
 pub use ocr::OcrEngine;
+pub use preprocessing::{BinarizationMethod, PreprocessingConfig};
