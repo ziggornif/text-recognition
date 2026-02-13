@@ -1,14 +1,12 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Bibliothèque d'OCR (Optical Character Recognition) pour Rust.
+//!
+//! Cette bibliothèque fournit une interface simple et flexible pour
+//! extraire du texte depuis des images en utilisant Tesseract OCR.
+//!
+//! # Modules
+//!
+//! - `config` : Configuration du moteur OCR
+//! - `ocr` : Moteur OCR principal
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub mod config;
+pub mod ocr;
