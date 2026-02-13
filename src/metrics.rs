@@ -654,6 +654,194 @@ pub fn compare_ocr_result(ocr_text: &str, reference_text: &str) -> OcrMetrics {
     }
 }
 
+/// Génère un rapport détaillé des différences entre le texte OCR et le texte de référence.
+///
+/// Cette fonction produit un rapport formaté en texte qui présente :
+/// - Les métriques globales (CER, WER, distance de Levenshtein)
+/// - Les statistiques de caractères et de mots
+/// - Une comparaison côte à côte des textes
+/// - Un résumé de la qualité
+///
+/// # Arguments
+///
+/// * `ocr_text` - Le texte extrait par OCR
+/// * `reference_text` - Le texte de référence attendu
+///
+/// # Retour
+///
+/// Une chaîne de caractères contenant le rapport formaté, prêt à être affiché
+/// ou écrit dans un fichier.
+///
+/// # Format du rapport
+///
+/// Le rapport contient les sections suivantes :
+/// 1. **En-tête** : Titre du rapport
+/// 2. **Métriques** : CER, WER, distance de Levenshtein, précision
+/// 3. **Statistiques** : Nombre de caractères et mots dans chaque texte
+/// 4. **Comparaison** : Affichage des deux textes pour comparaison visuelle
+/// 5. **Résumé** : Évaluation qualitative du résultat (Excellent, Bon, Moyen, Faible)
+///
+/// # Exemples
+///
+/// ```
+/// use text_recognition::metrics::generate_diff_report;
+///
+/// let ocr = "hello world";
+/// let reference = "hello world";
+/// let report = generate_diff_report(ocr, reference);
+/// println!("{}", report);
+/// ```
+///
+/// Exemple de sortie pour un texte avec erreurs :
+///
+/// ```text
+/// ═══════════════════════════════════════════════════════════
+///                    OCR COMPARISON REPORT
+/// ═══════════════════════════════════════════════════════════
+///
+/// METRICS:
+/// --------
+/// Character Error Rate (CER): 9.09%
+/// Word Error Rate (WER):      50.00%
+/// Levenshtein Distance:       1
+/// Accuracy:                   90.91%
+///
+/// STATISTICS:
+/// -----------
+/// Reference: 11 characters, 2 words
+/// OCR:       10 characters, 2 words
+///
+/// COMPARISON:
+/// -----------
+/// Reference: "hello world"
+/// OCR:       "helo world"
+///
+/// SUMMARY:
+/// --------
+/// Quality: Good (minor errors)
+/// Match:   Not exact
+/// ```
+///
+/// # Utilisation
+///
+/// Cette fonction est utile pour :
+/// - Déboguer les problèmes d'OCR
+/// - Générer des rapports de test
+/// - Comparer différentes configurations
+/// - Documenter la qualité des résultats
+///
+/// ```no_run
+/// use text_recognition::ocr::OcrEngine;
+/// use text_recognition::config::OcrConfig;
+/// use text_recognition::metrics::generate_diff_report;
+/// use std::path::Path;
+/// use std::fs;
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let mut engine = OcrEngine::new(OcrConfig::default())?;
+/// let ocr_text = engine.extract_text_from_file(Path::new("test.png"))?;
+/// let reference = fs::read_to_string("test_expected.txt")?;
+///
+/// let report = generate_diff_report(&ocr_text, &reference);
+/// fs::write("report.txt", report)?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn generate_diff_report(ocr_text: &str, reference_text: &str) -> String {
+    // Calculer les métriques
+    let metrics = compare_ocr_result(ocr_text, reference_text);
+
+    // Déterminer la qualité du résultat
+    let quality = if metrics.exact_match {
+        "Perfect (exact match)"
+    } else if metrics.cer < 0.05 {
+        "Excellent (< 5% error)"
+    } else if metrics.cer < 0.15 {
+        "Good (< 15% error)"
+    } else if metrics.cer < 0.30 {
+        "Fair (< 30% error)"
+    } else {
+        "Poor (≥ 30% error)"
+    };
+
+    // Construire le rapport
+    let mut report = String::new();
+
+    // En-tête
+    report.push_str("═══════════════════════════════════════════════════════════\n");
+    report.push_str("                   OCR COMPARISON REPORT\n");
+    report.push_str("═══════════════════════════════════════════════════════════\n\n");
+
+    // Métriques
+    report.push_str("METRICS:\n");
+    report.push_str("--------\n");
+    report.push_str(&format!(
+        "Character Error Rate (CER): {:.2}%\n",
+        metrics.cer * 100.0
+    ));
+    report.push_str(&format!(
+        "Word Error Rate (WER):      {:.2}%\n",
+        metrics.wer * 100.0
+    ));
+    report.push_str(&format!(
+        "Levenshtein Distance:       {}\n",
+        metrics.levenshtein_distance
+    ));
+    report.push_str(&format!(
+        "Accuracy:                   {:.2}%\n",
+        metrics.accuracy() * 100.0
+    ));
+
+    // Statistiques
+    report.push_str("\nSTATISTICS:\n");
+    report.push_str("-----------\n");
+    report.push_str(&format!(
+        "Reference: {} characters, {} words\n",
+        metrics.reference_char_count, metrics.reference_word_count
+    ));
+    report.push_str(&format!(
+        "OCR:       {} characters, {} words\n",
+        metrics.ocr_char_count, metrics.ocr_word_count
+    ));
+
+    // Comparaison
+    report.push_str("\nCOMPARISON:\n");
+    report.push_str("-----------\n");
+
+    // Limiter la longueur des textes affichés pour la lisibilité
+    let max_display_len = 200;
+    let ref_display = if reference_text.len() > max_display_len {
+        format!("{}... (truncated)", &reference_text[..max_display_len])
+    } else {
+        reference_text.to_string()
+    };
+    let ocr_display = if ocr_text.len() > max_display_len {
+        format!("{}... (truncated)", &ocr_text[..max_display_len])
+    } else {
+        ocr_text.to_string()
+    };
+
+    report.push_str(&format!("Reference: \"{}\"\n", ref_display));
+    report.push_str(&format!("OCR:       \"{}\"\n", ocr_display));
+
+    // Résumé
+    report.push_str("\nSUMMARY:\n");
+    report.push_str("--------\n");
+    report.push_str(&format!("Quality: {}\n", quality));
+    report.push_str(&format!(
+        "Match:   {}\n",
+        if metrics.exact_match {
+            "Exact"
+        } else {
+            "Not exact"
+        }
+    ));
+
+    report.push_str("\n═══════════════════════════════════════════════════════════\n");
+
+    report
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1049,5 +1237,125 @@ mod tests {
 
         let metrics = compare_ocr_result("helo world", "hello world");
         assert!((metrics.accuracy() - 10.0 / 11.0).abs() < 0.001); // ~90.9% précis
+    }
+
+    #[test]
+    fn test_generate_diff_report_perfect_match() {
+        let report = generate_diff_report("hello world", "hello world");
+
+        // Vérifier que le rapport contient les sections clés
+        assert!(report.contains("OCR COMPARISON REPORT"));
+        assert!(report.contains("METRICS:"));
+        assert!(report.contains("STATISTICS:"));
+        assert!(report.contains("COMPARISON:"));
+        assert!(report.contains("SUMMARY:"));
+
+        // Vérifier les métriques
+        assert!(report.contains("Character Error Rate (CER): 0.00%"));
+        assert!(report.contains("Word Error Rate (WER):      0.00%"));
+        assert!(report.contains("Levenshtein Distance:       0"));
+        assert!(report.contains("Accuracy:                   100.00%"));
+
+        // Vérifier la qualité
+        assert!(report.contains("Quality: Perfect (exact match)"));
+        assert!(report.contains("Match:   Exact"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_excellent_quality() {
+        // Texte long pour avoir < 5% d'erreur : 1 erreur sur 25 caractères = 4%
+        let reference = "This is a test sentence."; // 24 caractères
+        let ocr = "This is a tast sentence."; // 1 erreur : e -> a (4.16%)
+        let report = generate_diff_report(ocr, reference);
+
+        // Vérifier la classification de qualité (< 5% erreur = Excellent)
+        assert!(report.contains("Quality: Excellent (< 5% error)"));
+        assert!(report.contains("Match:   Not exact"));
+
+        // Vérifier que les métriques sont présentes
+        assert!(report.contains("Character Error Rate (CER):"));
+        assert!(report.contains("Word Error Rate (WER):"));
+        assert!(report.contains("Levenshtein Distance:       1"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_good_quality() {
+        // 1 erreur sur 11 caractères = ~9% (< 15% = Good)
+        let report = generate_diff_report("helo world", "hello world");
+
+        // ~9% d'erreur devrait être "Good"
+        assert!(report.contains("Quality: Good (< 15% error)"));
+        assert!(report.contains("Match:   Not exact"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_fair_quality() {
+        // 2 erreurs sur 11 caractères = ~18% (< 30% = Fair)
+        let report = generate_diff_report("helo wrld", "hello world");
+
+        // ~18% d'erreur devrait être "Fair"
+        assert!(report.contains("Quality: Fair (< 30% error)"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_poor_quality() {
+        // Texte très différent (≥ 30% erreur)
+        let report = generate_diff_report("abc def", "hello world");
+
+        assert!(report.contains("Quality: Poor (≥ 30% error)"));
+        assert!(report.contains("Match:   Not exact"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_statistics() {
+        let report = generate_diff_report("hello world", "hello world");
+
+        // Vérifier les statistiques
+        assert!(report.contains("Reference: 11 characters, 2 words"));
+        assert!(report.contains("OCR:       11 characters, 2 words"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_comparison_section() {
+        let report = generate_diff_report("hello world", "goodbye world");
+
+        // Vérifier que les deux textes sont affichés
+        assert!(report.contains("Reference: \"goodbye world\""));
+        assert!(report.contains("OCR:       \"hello world\""));
+    }
+
+    #[test]
+    fn test_generate_diff_report_truncation() {
+        // Créer un texte très long pour tester la troncature
+        let long_text = "a".repeat(250);
+        let report = generate_diff_report(&long_text, &long_text);
+
+        // Vérifier que le texte est tronqué
+        assert!(report.contains("... (truncated)"));
+        assert!(report.contains("250 characters"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_empty_texts() {
+        let report = generate_diff_report("", "");
+
+        // Devrait être un match parfait
+        assert!(report.contains("Quality: Perfect (exact match)"));
+        assert!(report.contains("Match:   Exact"));
+        assert!(report.contains("Reference: 0 characters, 0 words"));
+        assert!(report.contains("OCR:       0 characters, 0 words"));
+    }
+
+    #[test]
+    fn test_generate_diff_report_format() {
+        let report = generate_diff_report("test", "test");
+
+        // Vérifier le format avec les bordures
+        assert!(report.starts_with("═══════════════════════════════════════════════════════════"));
+        assert!(report.ends_with("═══════════════════════════════════════════════════════════\n"));
+
+        // Vérifier les sections avec tirets
+        assert!(report.contains("--------"));
+        assert!(report.contains("-----------"));
     }
 }
