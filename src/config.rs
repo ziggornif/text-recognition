@@ -408,3 +408,130 @@ impl OcrConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test de la configuration par défaut.
+    #[test]
+    fn test_default_config() {
+        let config = OcrConfig::default();
+
+        assert_eq!(config.language, "fra");
+        assert_eq!(config.page_seg_mode, PageSegMode::Auto);
+        assert_eq!(config.dpi, 300);
+        assert!(config.tesseract_variables.is_empty());
+    }
+
+    /// Test du preset pour documents.
+    #[test]
+    fn test_document_preset() {
+        let config = OcrConfig::document_preset();
+
+        // Vérifier les paramètres de base
+        assert_eq!(config.language, "fra");
+        assert_eq!(config.page_seg_mode, PageSegMode::Auto);
+        assert_eq!(config.dpi, 300);
+
+        // Vérifier les variables Tesseract spécifiques
+        assert_eq!(config.tesseract_variables.len(), 1);
+        assert_eq!(
+            config.tesseract_variables.get("preserve_interword_spaces"),
+            Some(&"1".to_string())
+        );
+    }
+
+    /// Test du preset pour captures d'écran.
+    #[test]
+    fn test_screenshot_preset() {
+        let config = OcrConfig::screenshot_preset();
+
+        // Vérifier les paramètres de base
+        assert_eq!(config.language, "fra");
+        assert_eq!(config.page_seg_mode, PageSegMode::Auto);
+        assert_eq!(config.dpi, 96); // DPI spécifique aux écrans
+
+        // Vérifier qu'aucune variable Tesseract n'est définie
+        assert!(config.tesseract_variables.is_empty());
+    }
+
+    /// Test du preset pour ligne de texte unique.
+    #[test]
+    fn test_single_line_preset() {
+        let config = OcrConfig::single_line_preset();
+
+        // Vérifier les paramètres de base
+        assert_eq!(config.language, "fra");
+        assert_eq!(config.page_seg_mode, PageSegMode::SingleLine);
+        assert_eq!(config.dpi, 150);
+
+        // Vérifier qu'aucune variable Tesseract n'est définie
+        assert!(config.tesseract_variables.is_empty());
+    }
+
+    /// Test du preset pour photos de texte.
+    #[test]
+    fn test_photo_preset() {
+        let config = OcrConfig::photo_preset();
+
+        // Vérifier les paramètres de base
+        assert_eq!(config.language, "fra");
+        assert_eq!(config.page_seg_mode, PageSegMode::Auto);
+        assert_eq!(config.dpi, 200);
+
+        // Vérifier les variables Tesseract spécifiques
+        assert_eq!(config.tesseract_variables.len(), 1);
+        assert_eq!(
+            config.tesseract_variables.get("tessedit_do_invert"),
+            Some(&"0".to_string())
+        );
+    }
+
+    /// Test de la conversion PageSegMode vers Tesseract PSM.
+    #[test]
+    fn test_page_seg_mode_conversion() {
+        assert_eq!(PageSegMode::OsdOnly.to_tesseract_psm(), 0);
+        assert_eq!(PageSegMode::AutoOsd.to_tesseract_psm(), 1);
+        assert_eq!(PageSegMode::AutoOnly.to_tesseract_psm(), 2);
+        assert_eq!(PageSegMode::Auto.to_tesseract_psm(), 3);
+        assert_eq!(PageSegMode::SingleColumn.to_tesseract_psm(), 4);
+        assert_eq!(PageSegMode::SingleBlockVertText.to_tesseract_psm(), 5);
+        assert_eq!(PageSegMode::SingleBlock.to_tesseract_psm(), 6);
+        assert_eq!(PageSegMode::SingleLine.to_tesseract_psm(), 7);
+        assert_eq!(PageSegMode::SingleWord.to_tesseract_psm(), 8);
+        assert_eq!(PageSegMode::CircleWord.to_tesseract_psm(), 9);
+        assert_eq!(PageSegMode::SingleChar.to_tesseract_psm(), 10);
+        assert_eq!(PageSegMode::SparseText.to_tesseract_psm(), 11);
+        assert_eq!(PageSegMode::SparseTextOsd.to_tesseract_psm(), 12);
+        assert_eq!(PageSegMode::RawLine.to_tesseract_psm(), 13);
+    }
+
+    /// Test que chaque preset a des paramètres distincts.
+    #[test]
+    fn test_presets_are_distinct() {
+        let document = OcrConfig::document_preset();
+        let screenshot = OcrConfig::screenshot_preset();
+        let single_line = OcrConfig::single_line_preset();
+        let photo = OcrConfig::photo_preset();
+
+        // Vérifier que les DPI sont différents pour chaque preset
+        assert_ne!(document.dpi, screenshot.dpi);
+        assert_ne!(document.dpi, single_line.dpi);
+        assert_ne!(screenshot.dpi, photo.dpi);
+
+        // Vérifier que les modes PSM sont différents là où attendu
+        assert_ne!(single_line.page_seg_mode, document.page_seg_mode);
+    }
+
+    /// Test que les presets peuvent être clonés.
+    #[test]
+    fn test_config_clone() {
+        let config1 = OcrConfig::document_preset();
+        let config2 = config1.clone();
+
+        assert_eq!(config1.language, config2.language);
+        assert_eq!(config1.page_seg_mode, config2.page_seg_mode);
+        assert_eq!(config1.dpi, config2.dpi);
+    }
+}
