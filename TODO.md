@@ -67,7 +67,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **4.6** - Implémenter `calculate_wer()`
 - [x] **4.7** - Implémenter `compare_ocr_result()`
 - [x] **4.8** - Implémenter `generate_diff_report()`
-- [ ] **4.9** - Ajouter option CLI `--expected`
+- [x] **4.9** - Ajouter option CLI `--expected`
 - [ ] **4.10** - Ajouter option CLI `--metrics`
 - [ ] **4.11** - Créer tests unitaires des métriques
 
@@ -120,9 +120,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 44
-- **Tâches restantes** : 23
-- **Progression** : 65.7%
+- **Tâches complétées** : 45
+- **Tâches restantes** : 22
+- **Progression** : 67.2%
 
 ---
 
