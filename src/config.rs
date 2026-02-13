@@ -103,7 +103,7 @@ impl Default for OcrConfig {
     ///
     /// # Valeurs par défaut
     ///
-    /// - `language`: "eng" (anglais)
+    /// - `language`: "fra" (français)
     /// - `dpi`: 300 (résolution standard pour documents scannés)
     ///
     /// # Exemple
@@ -112,12 +112,12 @@ impl Default for OcrConfig {
     /// use text_recognition::config::OcrConfig;
     ///
     /// let config = OcrConfig::default();
-    /// assert_eq!(config.language, "eng");
+    /// assert_eq!(config.language, "fra");
     /// assert_eq!(config.dpi, 300);
     /// ```
     fn default() -> Self {
         Self {
-            language: "eng".to_string(),
+            language: "fra".to_string(),
             dpi: 300,
         }
     }
