@@ -10,7 +10,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 
 - [x] **1.1** - Initialiser projet Cargo (`cargo init --lib`)
 - [x] **1.2** - Configurer `Cargo.toml` avec dépendances de base
-- [ ] **1.3** - Créer structure de répertoires (`src/`, `tests/`, `test_images/`, `docs/`)
+- [x] **1.3** - Créer structure de répertoires (`src/`, `tests/`, `test_images/`, `docs/`)
 - [ ] **1.4** - Créer `src/config.rs` avec structure `OcrConfig` minimale
 - [ ] **1.5** - Créer enum `PageSegMode` avec les 14 variantes
 - [ ] **1.6** - Implémenter `OcrConfig::default()`
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 2
-- **Tâches restantes** : 65
-- **Progression** : 3.0%
+- **Tâches complétées** : 3
+- **Tâches restantes** : 64
+- **Progression** : 4.5%
 
 ---
 
