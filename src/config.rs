@@ -69,6 +69,43 @@ pub enum PageSegMode {
     RawLine,
 }
 
+impl PageSegMode {
+    /// Convertit le mode de segmentation vers le code PSM Tesseract.
+    ///
+    /// Tesseract utilise des codes numériques pour identifier les modes de segmentation.
+    /// Cette méthode retourne le code approprié (0-13) pour le mode actuel.
+    ///
+    /// # Exemple
+    ///
+    /// ```
+    /// use text_recognition::config::PageSegMode;
+    ///
+    /// let mode = PageSegMode::Auto;
+    /// assert_eq!(mode.to_tesseract_psm(), 3);
+    ///
+    /// let line_mode = PageSegMode::SingleLine;
+    /// assert_eq!(line_mode.to_tesseract_psm(), 7);
+    /// ```
+    pub fn to_tesseract_psm(self) -> i32 {
+        match self {
+            PageSegMode::OsdOnly => 0,
+            PageSegMode::AutoOsd => 1,
+            PageSegMode::AutoOnly => 2,
+            PageSegMode::Auto => 3,
+            PageSegMode::SingleColumn => 4,
+            PageSegMode::SingleBlockVertText => 5,
+            PageSegMode::SingleBlock => 6,
+            PageSegMode::SingleLine => 7,
+            PageSegMode::SingleWord => 8,
+            PageSegMode::CircleWord => 9,
+            PageSegMode::SingleChar => 10,
+            PageSegMode::SparseText => 11,
+            PageSegMode::SparseTextOsd => 12,
+            PageSegMode::RawLine => 13,
+        }
+    }
+}
+
 /// Configuration pour le moteur OCR.
 ///
 /// Cette structure contient tous les paramètres nécessaires pour
