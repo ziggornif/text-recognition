@@ -6,9 +6,10 @@
 use anyhow::Result;
 use clap::Parser;
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use text_recognition::{
-    BinarizationMethod, OcrConfig, OcrEngine, PageSegMode, PreprocessingConfig,
+    BinarizationMethod, OcrConfig, OcrEngine, PageSegMode, PreprocessingConfig, compare_ocr_result,
 };
 
 /// Outil d'extraction de texte depuis des images (OCR).
@@ -105,6 +106,16 @@ struct Args {
     /// Note: Actuellement un stub (pas encore implémenté complètement)
     #[arg(long, requires = "preprocess")]
     deskew: bool,
+
+    /// Fichier contenant le texte de référence attendu
+    ///
+    /// Si fourni, le programme comparera le résultat OCR avec ce texte
+    /// et affichera les métriques de qualité (CER, WER, etc.) au lieu
+    /// du texte extrait.
+    ///
+    /// Exemple: --expected expected_text.txt
+    #[arg(short = 'e', long)]
+    expected: Option<PathBuf>,
 }
 
 /// Convertit un code PSM numérique en PageSegMode.
@@ -190,8 +201,66 @@ fn main() -> Result<()> {
     // Extraire le texte
     let text = engine.extract_text_from_file(&args.image)?;
 
-    // Afficher le résultat
-    println!("{}", text);
+    // Si un fichier de référence est fourni, comparer et afficher les métriques
+    if let Some(expected_path) = args.expected {
+        let expected_text = fs::read_to_string(&expected_path).map_err(|e| {
+            anyhow::anyhow!(
+                "Impossible de lire le fichier de référence '{}': {}",
+                expected_path.display(),
+                e
+            )
+        })?;
+
+        // Comparer le résultat OCR avec le texte attendu
+        let metrics = compare_ocr_result(&text, &expected_text);
+
+        // Afficher les métriques
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("               RÉSULTATS DE LA COMPARAISON OCR");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!();
+        println!("MÉTRIQUES:");
+        println!(
+            "  • CER (Character Error Rate):  {:.2}%",
+            metrics.cer * 100.0
+        );
+        println!(
+            "  • WER (Word Error Rate):       {:.2}%",
+            metrics.wer * 100.0
+        );
+        println!(
+            "  • Distance de Levenshtein:     {}",
+            metrics.levenshtein_distance
+        );
+        println!(
+            "  • Précision:                   {:.2}%",
+            metrics.accuracy() * 100.0
+        );
+        println!();
+        println!("STATISTIQUES:");
+        println!(
+            "  • Référence:  {} caractères, {} mots",
+            metrics.reference_char_count, metrics.reference_word_count
+        );
+        println!(
+            "  • OCR:        {} caractères, {} mots",
+            metrics.ocr_char_count, metrics.ocr_word_count
+        );
+        println!();
+        println!(
+            "  • Match exact: {}",
+            if metrics.exact_match {
+                "Oui ✓"
+            } else {
+                "Non ✗"
+            }
+        );
+        println!();
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    } else {
+        // Afficher le résultat normalement
+        println!("{}", text);
+    }
 
     Ok(())
 }
