@@ -26,9 +26,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Phase 2 : Configuration Complète
 
 - [x] **2.1** - Ajouter conversion `PageSegMode` → Tesseract PSM
-- [ ] **2.2** - Ajouter champ `tesseract_variables: HashMap<String, String>` dans `OcrConfig`
-- [ ] **2.3** - Implémenter application des variables dans `OcrEngine`
-- [ ] **2.4** - Créer `OcrConfig::document_preset()`
+- [x] **2.2** - Ajouter champ `tesseract_variables: HashMap<String, String>` dans `OcrConfig`
+- [x] **2.3** - Implémenter application des variables dans `OcrEngine`
+- [x] **2.4** - Créer `OcrConfig::document_preset()`
 - [ ] **2.5** - Créer `OcrConfig::screenshot_preset()`
 - [ ] **2.6** - Créer `OcrConfig::single_line_preset()`
 - [ ] **2.7** - Créer `OcrConfig::photo_preset()`
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 13
-- **Tâches restantes** : 54
-- **Progression** : 19.4%
+- **Tâches complétées** : 16
+- **Tâches restantes** : 51
+- **Progression** : 23.9%
 
 ---
 
