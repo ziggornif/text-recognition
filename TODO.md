@@ -51,9 +51,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **3.9** - Implémenter `denoise()`
 - [x] **3.10** - Implémenter `deskew()`
 - [x] **3.11** - Implémenter `preprocess_image()` (pipeline complet)
-- [ ] **3.12** - Intégrer prétraitement dans `OcrEngine`
-- [ ] **3.13** - Ajouter option CLI `--preprocess`
-- [ ] **3.14** - Créer tests unitaires du prétraitement
+- [x] **3.12** - Intégrer prétraitement dans `OcrEngine`
+- [x] **3.13** - Ajouter option CLI `--preprocess`
+- [x] **3.14** - Créer tests unitaires du prétraitement
 
 ---
 
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 33
-- **Tâches restantes** : 34
-- **Progression** : 49.3%
+- **Tâches complétées** : 36
+- **Tâches restantes** : 31
+- **Progression** : 53.7%
 
 ---
 
