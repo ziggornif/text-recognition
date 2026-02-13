@@ -21,8 +21,10 @@
 //! - `config` : Configuration du moteur OCR et modes de segmentation
 //! - `ocr` : Moteur OCR principal pour l'extraction de texte
 //! - `preprocessing` : Prétraitement d'images pour améliorer la qualité OCR
+//! - `metrics` : Calcul de métriques de qualité OCR (CER, WER)
 
 pub mod config;
+pub mod metrics;
 pub mod ocr;
 pub mod preprocessing;
 
