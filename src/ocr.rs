@@ -5,7 +5,8 @@
 //! des images avec différentes configurations.
 
 use crate::config::OcrConfig;
-use anyhow::Result;
+use anyhow::{Context, Result};
+use std::path::Path;
 
 /// Moteur OCR principal basé sur Tesseract.
 ///
@@ -62,5 +63,60 @@ impl OcrEngine {
         // Pour l'instant, on crée simplement la structure
         // La validation de Tesseract sera faite lors de l'utilisation réelle
         Ok(Self { config })
+    }
+
+    /// Extrait le texte d'une image.
+    ///
+    /// Cette méthode charge une image depuis un fichier et utilise Tesseract
+    /// pour extraire son contenu textuel.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Chemin vers l'image à analyser
+    ///
+    /// # Exemple
+    ///
+    /// ```no_run
+    /// use text_recognition::ocr::OcrEngine;
+    /// use text_recognition::config::OcrConfig;
+    /// use std::path::Path;
+    ///
+    /// let config = OcrConfig::default();
+    /// let engine = OcrEngine::new(config)?;
+    /// let text = engine.extract_text_from_file(Path::new("image.png"))?;
+    /// println!("Texte extrait: {}", text);
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    ///
+    /// # Erreurs
+    ///
+    /// Retourne une erreur si :
+    /// - Le fichier n'existe pas
+    /// - L'image est corrompue ou dans un format non supporté
+    /// - Tesseract échoue lors de l'extraction
+    /// - Les données linguistiques ne sont pas disponibles
+    pub fn extract_text_from_file(&self, path: &Path) -> Result<String> {
+        // Vérifier que le fichier existe
+        if !path.exists() {
+            anyhow::bail!("Le fichier '{}' n'existe pas", path.display());
+        }
+
+        // Convertir le chemin en string
+        let path_str = path.to_str().context("Chemin invalide")?;
+
+        // Initialiser Tesseract, configurer et charger l'image en chaînant les appels
+        let mut tesseract = tesseract::Tesseract::new(None, Some(&self.config.language))
+            .context("Échec de l'initialisation de Tesseract")?
+            .set_variable("user_defined_dpi", &self.config.dpi.to_string())
+            .context("Échec de la configuration du DPI")?
+            .set_image(path_str)
+            .context("Échec du chargement de l'image")?;
+
+        // Extraire le texte
+        let text = tesseract
+            .get_text()
+            .context("Échec de l'extraction du texte")?;
+
+        Ok(text)
     }
 }
