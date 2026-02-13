@@ -232,4 +232,54 @@ impl OcrConfig {
             tesseract_variables: variables,
         }
     }
+
+    /// Crée une configuration préréglée optimisée pour les captures d'écran.
+    ///
+    /// Ce preset est idéal pour :
+    /// - Captures d'écran de texte
+    /// - Interface utilisateur d'applications
+    /// - Contenu web capturé
+    /// - Fenêtres de dialogue et messages
+    ///
+    /// # Configuration appliquée
+    ///
+    /// - **DPI** : 96 (résolution standard pour écrans)
+    /// - **Variables Tesseract** :
+    ///   - Aucune variable spécifique (utilise les paramètres par défaut)
+    ///
+    /// # Mode PSM recommandé
+    ///
+    /// Pour utiliser ce preset efficacement, combinez-le avec :
+    /// - `PageSegMode::Auto` (mode 3) : Détection automatique (par défaut)
+    /// - `PageSegMode::SparseText` (mode 11) : Pour texte épars ou dispersé
+    /// - `PageSegMode::SingleBlock` (mode 6) : Pour bloc de texte unique
+    ///
+    /// # Exemple
+    ///
+    /// ```
+    /// use text_recognition::config::OcrConfig;
+    ///
+    /// // Créer un preset pour captures d'écran
+    /// let config = OcrConfig::screenshot_preset();
+    /// assert_eq!(config.language, "fra");
+    /// assert_eq!(config.dpi, 96);
+    /// ```
+    ///
+    /// Pour utiliser ce preset avec un moteur OCR :
+    ///
+    /// ```no_run
+    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::ocr::OcrEngine;
+    ///
+    /// let config = OcrConfig::screenshot_preset();
+    /// let mut engine = OcrEngine::new(config)?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    pub fn screenshot_preset() -> Self {
+        Self {
+            language: "fra".to_string(),
+            dpi: 96,
+            tesseract_variables: HashMap::new(),
+        }
+    }
 }
