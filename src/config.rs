@@ -3,6 +3,8 @@
 //! Ce module fournit les structures et méthodes pour configurer
 //! le moteur OCR avec différents paramètres et modes de segmentation.
 
+use std::collections::HashMap;
+
 /// Mode de segmentation de page (Page Segmentation Mode).
 ///
 /// Tesseract propose 14 modes différents pour segmenter et analyser une image.
@@ -115,14 +117,19 @@ impl PageSegMode {
 ///
 /// ```
 /// use text_recognition::config::OcrConfig;
+/// use std::collections::HashMap;
 ///
 /// // Utiliser la configuration par défaut
 /// let config = OcrConfig::default();
 ///
 /// // Ou créer une configuration personnalisée
+/// let mut variables = HashMap::new();
+/// variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
+///
 /// let custom_config = OcrConfig {
 ///     language: "eng".to_string(),
 ///     dpi: 300,
+///     tesseract_variables: variables,
 /// };
 /// ```
 #[derive(Debug, Clone)]
@@ -133,6 +140,15 @@ pub struct OcrConfig {
     /// Résolution DPI de l'image (points par pouce).
     /// Une valeur typique est 300 DPI pour des documents scannés.
     pub dpi: u32,
+
+    /// Variables de configuration Tesseract.
+    ///
+    /// Permet de personnaliser finement le comportement de Tesseract via des variables.
+    /// Exemples de variables courantes :
+    /// - `tessedit_char_whitelist`: Caractères autorisés (ex: "0123456789" pour chiffres uniquement)
+    /// - `tessedit_char_blacklist`: Caractères interdits
+    /// - `preserve_interword_spaces`: Préserver les espaces multiples ("1" = oui, "0" = non)
+    pub tesseract_variables: HashMap<String, String>,
 }
 
 impl Default for OcrConfig {
@@ -142,6 +158,7 @@ impl Default for OcrConfig {
     ///
     /// - `language`: "fra" (français)
     /// - `dpi`: 300 (résolution standard pour documents scannés)
+    /// - `tesseract_variables`: HashMap vide (aucune variable personnalisée)
     ///
     /// # Exemple
     ///
@@ -151,11 +168,13 @@ impl Default for OcrConfig {
     /// let config = OcrConfig::default();
     /// assert_eq!(config.language, "fra");
     /// assert_eq!(config.dpi, 300);
+    /// assert!(config.tesseract_variables.is_empty());
     /// ```
     fn default() -> Self {
         Self {
             language: "fra".to_string(),
             dpi: 300,
+            tesseract_variables: HashMap::new(),
         }
     }
 }

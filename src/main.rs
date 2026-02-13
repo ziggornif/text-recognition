@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use clap::Parser;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use text_recognition::{OcrConfig, OcrEngine};
 
@@ -37,6 +38,7 @@ fn main() -> Result<()> {
     let config = OcrConfig {
         language: args.language,
         dpi: args.dpi,
+        tesseract_variables: HashMap::new(),
     };
 
     // Créer le moteur OCR

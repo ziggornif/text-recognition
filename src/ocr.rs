@@ -44,10 +44,12 @@ impl OcrEngine {
     /// ```no_run
     /// use text_recognition::ocr::OcrEngine;
     /// use text_recognition::config::OcrConfig;
+    /// use std::collections::HashMap;
     ///
     /// let config = OcrConfig {
     ///     language: "fra".to_string(),
     ///     dpi: 300,
+    ///     tesseract_variables: HashMap::new(),
     /// };
     ///
     /// let engine = OcrEngine::new(config).expect("Échec initialisation OCR");
