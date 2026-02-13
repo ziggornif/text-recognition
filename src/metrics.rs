@@ -556,6 +556,104 @@ fn word_levenshtein_distance(source: &[&str], target: &[&str]) -> usize {
     matrix[source_len][target_len]
 }
 
+/// Compare un résultat OCR avec un texte de référence et calcule toutes les métriques.
+///
+/// Cette fonction effectue une analyse complète de la qualité d'un résultat OCR
+/// en calculant le CER, le WER, la distance de Levenshtein, et en comptant les
+/// caractères et mots dans les deux textes.
+///
+/// # Arguments
+///
+/// * `ocr_text` - Le texte extrait par OCR
+/// * `reference_text` - Le texte de référence attendu
+///
+/// # Retour
+///
+/// Une structure `OcrMetrics` contenant toutes les métriques calculées :
+/// - `cer` : Character Error Rate
+/// - `wer` : Word Error Rate
+/// - `levenshtein_distance` : Distance de Levenshtein au niveau des caractères
+/// - `reference_char_count` : Nombre de caractères dans la référence
+/// - `ocr_char_count` : Nombre de caractères dans le texte OCR
+/// - `reference_word_count` : Nombre de mots dans la référence
+/// - `ocr_word_count` : Nombre de mots dans le texte OCR
+/// - `exact_match` : `true` si les textes sont identiques
+///
+/// # Exemples
+///
+/// ```
+/// use text_recognition::metrics::compare_ocr_result;
+///
+/// // Textes identiques
+/// let metrics = compare_ocr_result("hello world", "hello world");
+/// assert_eq!(metrics.cer, 0.0);
+/// assert_eq!(metrics.wer, 0.0);
+/// assert!(metrics.exact_match);
+///
+/// // Texte avec une erreur
+/// let metrics = compare_ocr_result("helo world", "hello world");
+/// assert!(metrics.cer > 0.0);
+/// assert!(metrics.wer > 0.0);
+/// assert!(!metrics.exact_match);
+/// assert_eq!(metrics.levenshtein_distance, 1);
+/// ```
+///
+/// # Utilisation
+///
+/// Cette fonction est typiquement utilisée après une extraction OCR pour évaluer
+/// la qualité du résultat par rapport à un texte de référence connu :
+///
+/// ```no_run
+/// use text_recognition::ocr::OcrEngine;
+/// use text_recognition::config::OcrConfig;
+/// use text_recognition::metrics::compare_ocr_result;
+/// use std::path::Path;
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let mut engine = OcrEngine::new(OcrConfig::default())?;
+/// let ocr_text = engine.extract_text_from_file(Path::new("test.png"))?;
+/// let reference = "Expected text content";
+///
+/// let metrics = compare_ocr_result(&ocr_text, reference);
+/// println!("CER: {:.2}%", metrics.cer * 100.0);
+/// println!("WER: {:.2}%", metrics.wer * 100.0);
+/// println!("Accuracy: {:.2}%", metrics.accuracy() * 100.0);
+/// # Ok(())
+/// # }
+/// ```
+pub fn compare_ocr_result(ocr_text: &str, reference_text: &str) -> OcrMetrics {
+    // Calculer la distance de Levenshtein
+    let levenshtein_distance = levenshtein_distance(ocr_text, reference_text);
+
+    // Compter les caractères
+    let reference_char_count = reference_text.chars().count();
+    let ocr_char_count = ocr_text.chars().count();
+
+    // Compter les mots
+    let reference_word_count = reference_text.split_whitespace().count();
+    let ocr_word_count = ocr_text.split_whitespace().count();
+
+    // Calculer le CER
+    let cer = calculate_cer(ocr_text, reference_text);
+
+    // Calculer le WER
+    let wer = calculate_wer(ocr_text, reference_text);
+
+    // Vérifier si c'est un match exact
+    let exact_match = ocr_text == reference_text;
+
+    OcrMetrics {
+        cer,
+        wer,
+        levenshtein_distance,
+        reference_char_count,
+        ocr_char_count,
+        reference_word_count,
+        ocr_word_count,
+        exact_match,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -796,5 +894,160 @@ mod tests {
         let source = vec!["hello"];
         let target = vec!["hello", "world"];
         assert_eq!(word_levenshtein_distance(&source, &target), 1);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_identical_texts() {
+        let metrics = compare_ocr_result("hello world", "hello world");
+        assert_eq!(metrics.cer, 0.0);
+        assert_eq!(metrics.wer, 0.0);
+        assert_eq!(metrics.levenshtein_distance, 0);
+        assert_eq!(metrics.reference_char_count, 11);
+        assert_eq!(metrics.ocr_char_count, 11);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 2);
+        assert!(metrics.exact_match);
+        assert_eq!(metrics.accuracy(), 1.0);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_empty_texts() {
+        let metrics = compare_ocr_result("", "");
+        assert_eq!(metrics.cer, 0.0);
+        assert_eq!(metrics.wer, 0.0);
+        assert_eq!(metrics.levenshtein_distance, 0);
+        assert_eq!(metrics.reference_char_count, 0);
+        assert_eq!(metrics.ocr_char_count, 0);
+        assert_eq!(metrics.reference_word_count, 0);
+        assert_eq!(metrics.ocr_word_count, 0);
+        assert!(metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_single_character_error() {
+        let metrics = compare_ocr_result("helo world", "hello world");
+        assert!((metrics.cer - 1.0 / 11.0).abs() < 0.001); // 1 erreur sur 11 caractères
+        assert_eq!(metrics.wer, 0.5); // 1 mot différent sur 2
+        assert_eq!(metrics.levenshtein_distance, 1);
+        assert_eq!(metrics.reference_char_count, 11);
+        assert_eq!(metrics.ocr_char_count, 10);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 2);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_multiple_word_errors() {
+        let metrics = compare_ocr_result("helo wrld", "hello world");
+        assert!((metrics.cer - 2.0 / 11.0).abs() < 0.001); // 2 erreurs sur 11 caractères
+        assert_eq!(metrics.wer, 1.0); // 2 mots différents sur 2
+        assert_eq!(metrics.levenshtein_distance, 2);
+        assert_eq!(metrics.reference_char_count, 11);
+        assert_eq!(metrics.ocr_char_count, 9);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 2);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_missing_word() {
+        let metrics = compare_ocr_result("hello", "hello world");
+        assert!((metrics.cer - 6.0 / 11.0).abs() < 0.001); // 6 caractères manquants
+        assert_eq!(metrics.wer, 0.5); // 1 mot manquant sur 2
+        assert_eq!(metrics.levenshtein_distance, 6); // " world" = 6 caractères
+        assert_eq!(metrics.reference_char_count, 11);
+        assert_eq!(metrics.ocr_char_count, 5);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 1);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_extra_word() {
+        let metrics = compare_ocr_result("hello big world", "hello world");
+        assert!((metrics.cer - 4.0 / 11.0).abs() < 0.001); // 4 caractères en trop
+        assert_eq!(metrics.wer, 0.5); // 1 mot en trop sur 2
+        assert_eq!(metrics.levenshtein_distance, 4); // "big " = 4 caractères
+        assert_eq!(metrics.reference_char_count, 11);
+        assert_eq!(metrics.ocr_char_count, 15);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 3);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_completely_different() {
+        let metrics = compare_ocr_result("abc def", "xyz uvw");
+        assert!((metrics.cer - 6.0 / 7.0).abs() < 0.001); // 6 erreurs sur 7 caractères
+        assert_eq!(metrics.wer, 1.0); // 2 mots différents sur 2
+        assert_eq!(metrics.levenshtein_distance, 6);
+        assert_eq!(metrics.reference_char_count, 7);
+        assert_eq!(metrics.ocr_char_count, 7);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 2);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_empty_ocr() {
+        let metrics = compare_ocr_result("", "hello world");
+        assert_eq!(metrics.cer, 1.0); // 100% d'erreur
+        assert_eq!(metrics.wer, 1.0); // 100% d'erreur
+        assert_eq!(metrics.levenshtein_distance, 11);
+        assert_eq!(metrics.reference_char_count, 11);
+        assert_eq!(metrics.ocr_char_count, 0);
+        assert_eq!(metrics.reference_word_count, 2);
+        assert_eq!(metrics.ocr_word_count, 0);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_empty_reference() {
+        let metrics = compare_ocr_result("hello world", "");
+        assert_eq!(metrics.cer, 1.0); // 100% d'erreur (par convention)
+        assert_eq!(metrics.wer, 1.0); // 100% d'erreur
+        assert_eq!(metrics.levenshtein_distance, 11);
+        assert_eq!(metrics.reference_char_count, 0);
+        assert_eq!(metrics.ocr_char_count, 11);
+        assert_eq!(metrics.reference_word_count, 0);
+        assert_eq!(metrics.ocr_word_count, 2);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_unicode() {
+        let metrics = compare_ocr_result("café", "café");
+        assert_eq!(metrics.cer, 0.0);
+        assert_eq!(metrics.wer, 0.0);
+        assert_eq!(metrics.levenshtein_distance, 0);
+        assert_eq!(metrics.reference_char_count, 4);
+        assert_eq!(metrics.ocr_char_count, 4);
+        assert!(metrics.exact_match);
+
+        let metrics = compare_ocr_result("cafe", "café");
+        assert_eq!(metrics.cer, 0.25); // 1 erreur sur 4 caractères
+        assert_eq!(metrics.wer, 1.0); // 1 mot différent sur 1
+        assert_eq!(metrics.levenshtein_distance, 1);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_multiline_text() {
+        let reference = "First line\nSecond line\nThird line";
+        let ocr = "First line\nSecond line\nThird line";
+        let metrics = compare_ocr_result(ocr, reference);
+        assert_eq!(metrics.cer, 0.0);
+        assert_eq!(metrics.wer, 0.0);
+        assert!(metrics.exact_match);
+        assert_eq!(metrics.reference_word_count, 6);
+    }
+
+    #[test]
+    fn test_compare_ocr_result_accuracy() {
+        let metrics = compare_ocr_result("hello world", "hello world");
+        assert_eq!(metrics.accuracy(), 1.0); // 100% précis
+
+        let metrics = compare_ocr_result("helo world", "hello world");
+        assert!((metrics.accuracy() - 10.0 / 11.0).abs() < 0.001); // ~90.9% précis
     }
 }
