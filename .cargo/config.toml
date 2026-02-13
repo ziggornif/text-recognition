@@ -1,0 +1,5 @@
+# Configuration Cargo pour le projet text-recognition
+
+[env]
+# Fix pour bindgen sur systèmes 64-bit Linux
+BINDGEN_EXTRA_CLANG_ARGS = "--target=x86_64-unknown-linux-gnu"

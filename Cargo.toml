@@ -1,6 +1,43 @@
+# Educational OCR project using Tesseract with Rust
+#
+# SYSTEM REQUIREMENTS:
+# Before building this project, you must install the following system libraries:
+#
+# Ubuntu/Debian:
+#   sudo apt-get install libtesseract-dev libleptonica-dev tesseract-ocr libclang-dev clang
+#
+# Arch Linux:
+#   sudo pacman -S tesseract leptonica clang
+#
+# Fedora/RHEL:
+#   sudo dnf install tesseract-devel leptonica-devel clang-devel
+
 [package]
 name = "text-recognition"
 version = "0.1.0"
 edition = "2024"
+authors = ["ziggornif <matthieudrouian@gmail.com>"]
+description = "Educational OCR project using Tesseract with Rust"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "text_recognition"
+path = "src/lib.rs"
 
 [dependencies]
+# OCR library
+tesseract = "0.15"
+
+# Image manipulation
+image = "0.25"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+[dev-dependencies]
+# Testing utilities
+tempfile = "3.13"
