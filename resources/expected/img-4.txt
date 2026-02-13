@@ -1,0 +1,3 @@
+Je suis une phrase de test.
+
+Reconnaissance optique de caractères

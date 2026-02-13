@@ -1,0 +1,25 @@
+2 ABREVIATIONS ET SYMBOLES
+
+Dans le but de faciliter la compréhension de la notice, les
+paragraphes sont marqués par des illustrations
+schématiques qui mettent en évidence le sujet traité.
+Cette notice contient également des notes informatives
+avec une signification particulière :
+
+Normes de prévention des accidents du travail
+pour l'opérateur et pour les personnes qui
+travaillent aux alentours.
+
+Il existe la possibilité de causer des dommages
+au véhicule et/ou à ses composants.
+
+Informations complémentaires sur l'opération
+en cours.
+
+N.B. Les termes "droite" ou "gauche" font
+référence aux commandes vues de la position
+de conduite.
+
+N.B. Dans tous les dessins techniques de cette
+notice, les cotes sont en mm, tandis que les
+couples de serrage sont en newtons par mètre.
