@@ -116,7 +116,7 @@ impl PageSegMode {
 /// # Exemple
 ///
 /// ```
-/// use text_recognition::config::OcrConfig;
+/// use text_recognition::config::{OcrConfig, PageSegMode};
 /// use std::collections::HashMap;
 ///
 /// // Utiliser la configuration par défaut
@@ -128,6 +128,7 @@ impl PageSegMode {
 ///
 /// let custom_config = OcrConfig {
 ///     language: "eng".to_string(),
+///     page_seg_mode: PageSegMode::SingleBlock,
 ///     dpi: 300,
 ///     tesseract_variables: variables,
 /// };
@@ -136,6 +137,12 @@ impl PageSegMode {
 pub struct OcrConfig {
     /// Langue utilisée pour l'OCR (ex: "eng", "fra", "eng+fra").
     pub language: String,
+
+    /// Mode de segmentation de page.
+    ///
+    /// Détermine comment Tesseract analyse et segmente l'image.
+    /// Le mode par défaut est `PageSegMode::Auto` (mode 3).
+    pub page_seg_mode: PageSegMode,
 
     /// Résolution DPI de l'image (points par pouce).
     /// Une valeur typique est 300 DPI pour des documents scannés.
@@ -157,22 +164,25 @@ impl Default for OcrConfig {
     /// # Valeurs par défaut
     ///
     /// - `language`: "fra" (français)
+    /// - `page_seg_mode`: `PageSegMode::Auto` (détection automatique)
     /// - `dpi`: 300 (résolution standard pour documents scannés)
     /// - `tesseract_variables`: HashMap vide (aucune variable personnalisée)
     ///
     /// # Exemple
     ///
     /// ```
-    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::config::{OcrConfig, PageSegMode};
     ///
     /// let config = OcrConfig::default();
     /// assert_eq!(config.language, "fra");
+    /// assert_eq!(config.page_seg_mode, PageSegMode::Auto);
     /// assert_eq!(config.dpi, 300);
     /// assert!(config.tesseract_variables.is_empty());
     /// ```
     fn default() -> Self {
         Self {
             language: "fra".to_string(),
+            page_seg_mode: PageSegMode::Auto,
             dpi: 300,
             tesseract_variables: HashMap::new(),
         }
@@ -228,6 +238,7 @@ impl OcrConfig {
 
         Self {
             language: "fra".to_string(),
+            page_seg_mode: PageSegMode::Auto,
             dpi: 300,
             tesseract_variables: variables,
         }
@@ -278,6 +289,7 @@ impl OcrConfig {
     pub fn screenshot_preset() -> Self {
         Self {
             language: "fra".to_string(),
+            page_seg_mode: PageSegMode::Auto,
             dpi: 96,
             tesseract_variables: HashMap::new(),
         }
@@ -328,6 +340,7 @@ impl OcrConfig {
     pub fn single_line_preset() -> Self {
         Self {
             language: "fra".to_string(),
+            page_seg_mode: PageSegMode::SingleLine,
             dpi: 150,
             tesseract_variables: HashMap::new(),
         }
@@ -389,6 +402,7 @@ impl OcrConfig {
 
         Self {
             language: "fra".to_string(),
+            page_seg_mode: PageSegMode::Auto,
             dpi: 200,
             tesseract_variables: variables,
         }

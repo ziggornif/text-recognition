@@ -43,11 +43,12 @@ impl OcrEngine {
     ///
     /// ```no_run
     /// use text_recognition::ocr::OcrEngine;
-    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::config::{OcrConfig, PageSegMode};
     /// use std::collections::HashMap;
     ///
     /// let config = OcrConfig {
     ///     language: "fra".to_string(),
+    ///     page_seg_mode: PageSegMode::Auto,
     ///     dpi: 300,
     ///     tesseract_variables: HashMap::new(),
     /// };
@@ -81,7 +82,7 @@ impl OcrEngine {
     ///
     /// ```no_run
     /// use text_recognition::ocr::OcrEngine;
-    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::config::{OcrConfig, PageSegMode};
     /// use std::path::Path;
     /// use std::collections::HashMap;
     ///
@@ -90,6 +91,7 @@ impl OcrEngine {
     ///
     /// let config = OcrConfig {
     ///     language: "eng".to_string(),
+    ///     page_seg_mode: PageSegMode::SingleBlock,
     ///     dpi: 300,
     ///     tesseract_variables: variables,
     /// };
@@ -120,6 +122,27 @@ impl OcrEngine {
         // Initialiser Tesseract avec la langue configurée
         let mut tesseract = tesseract::Tesseract::new(None, Some(&self.config.language))
             .context("Échec de l'initialisation de Tesseract")?;
+
+        // Appliquer le mode de segmentation de page
+        let psm = match self.config.page_seg_mode {
+            crate::config::PageSegMode::OsdOnly => tesseract::PageSegMode::PsmOsdOnly,
+            crate::config::PageSegMode::AutoOsd => tesseract::PageSegMode::PsmAutoOsd,
+            crate::config::PageSegMode::AutoOnly => tesseract::PageSegMode::PsmAutoOnly,
+            crate::config::PageSegMode::Auto => tesseract::PageSegMode::PsmAuto,
+            crate::config::PageSegMode::SingleColumn => tesseract::PageSegMode::PsmSingleColumn,
+            crate::config::PageSegMode::SingleBlockVertText => {
+                tesseract::PageSegMode::PsmSingleBlockVertText
+            }
+            crate::config::PageSegMode::SingleBlock => tesseract::PageSegMode::PsmSingleBlock,
+            crate::config::PageSegMode::SingleLine => tesseract::PageSegMode::PsmSingleLine,
+            crate::config::PageSegMode::SingleWord => tesseract::PageSegMode::PsmSingleWord,
+            crate::config::PageSegMode::CircleWord => tesseract::PageSegMode::PsmCircleWord,
+            crate::config::PageSegMode::SingleChar => tesseract::PageSegMode::PsmSingleChar,
+            crate::config::PageSegMode::SparseText => tesseract::PageSegMode::PsmSparseText,
+            crate::config::PageSegMode::SparseTextOsd => tesseract::PageSegMode::PsmSparseTextOsd,
+            crate::config::PageSegMode::RawLine => tesseract::PageSegMode::PsmRawLine,
+        };
+        tesseract.set_page_seg_mode(psm);
 
         // Appliquer le DPI
         tesseract = tesseract
