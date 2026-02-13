@@ -1358,4 +1358,136 @@ mod tests {
         assert!(report.contains("--------"));
         assert!(report.contains("-----------"));
     }
+
+    // ============================================================
+    // Tests avec du texte français
+    // ============================================================
+
+    #[test]
+    fn test_french_text_perfect_match() {
+        let reference = "Bonjour, comment allez-vous aujourd'hui ?";
+        let ocr = "Bonjour, comment allez-vous aujourd'hui ?";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        assert_eq!(metrics.cer, 0.0);
+        assert_eq!(metrics.wer, 0.0);
+        assert!(metrics.exact_match);
+        assert_eq!(metrics.reference_char_count, 41);
+        assert_eq!(metrics.reference_word_count, 5);
+    }
+
+    #[test]
+    fn test_french_text_with_accents() {
+        let reference = "Le café est très délicieux et coûte cher.";
+        let ocr = "Le cafe est tres delicieux et coute cher.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // 4 accents : café→cafe (é→e), très→tres (è→e), délicieux→delicieux (é→e), coûte→coute (û→u)
+        assert_eq!(metrics.levenshtein_distance, 4);
+        assert!((metrics.cer - 4.0 / 41.0).abs() < 0.001); // ~9.75%
+        assert_eq!(metrics.reference_char_count, 41);
+        assert_eq!(metrics.ocr_char_count, 41);
+        assert!(!metrics.exact_match);
+    }
+
+    #[test]
+    fn test_french_text_accent_errors_cer() {
+        let reference = "école";
+        let ocr = "ecole";
+
+        let cer = calculate_cer(ocr, reference);
+        assert_eq!(cer, 0.2); // 1 erreur sur 5 caractères
+    }
+
+    #[test]
+    fn test_french_text_cedilla() {
+        let reference = "Le garçon reçoit un reçu.";
+        let ocr = "Le garcon recoit un recu.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // 3 cédilles : garçon→garcon, reçoit→recoit, reçu→recu
+        assert_eq!(metrics.levenshtein_distance, 3);
+        assert_eq!(metrics.reference_char_count, 25);
+        assert_eq!(metrics.ocr_char_count, 25);
+    }
+
+    #[test]
+    fn test_french_text_ligature_oe() {
+        let reference = "Un bœuf et un œuf dans le cœur.";
+        let ocr = "Un boeuf et un oeuf dans le coeur.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // 3 ligatures œ→oe (chacune compte comme 1 suppression + 2 insertions = 2 opérations)
+        // En réalité: bœuf→boeuf (2), œuf→oeuf (2), cœur→coeur (2) = 6 opérations
+        assert_eq!(metrics.levenshtein_distance, 6);
+        assert_eq!(metrics.reference_char_count, 31);
+        assert_eq!(metrics.ocr_char_count, 34);
+    }
+
+    #[test]
+    fn test_french_text_apostrophe() {
+        let reference = "L'école d'été qu'il a visitée.";
+        let ocr = "L'ecole d'ete qu'il a visitee.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // 4 accents : école→ecole, été→ete, visitée→visitee (2 accents)
+        assert_eq!(metrics.levenshtein_distance, 4);
+        assert_eq!(metrics.reference_word_count, 5);
+        assert_eq!(metrics.reference_char_count, 30);
+    }
+
+    #[test]
+    fn test_french_text_complex_sentence() {
+        let reference = "L'été dernier, j'ai visité la côte méditerranéenne.";
+        let ocr = "L'ete dernier, j'ai visite la cote mediterraneenne.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // Accents manquants : été→ete, visité→visite, côte→cote, méditerranéenne→mediterraneenne (2 accents)
+        // Total: 6 erreurs
+        assert_eq!(metrics.levenshtein_distance, 6);
+        assert!((metrics.cer - 6.0 / 51.0).abs() < 0.001); // ~11.76%
+        assert_eq!(metrics.reference_char_count, 51);
+    }
+
+    #[test]
+    fn test_french_generate_report() {
+        let reference = "Le développement logiciel nécessite de la rigueur.";
+        let ocr = "Le developpement logiciel necessite de la rigueur.";
+
+        let report = generate_diff_report(ocr, reference);
+
+        // Vérifier que le rapport est bien généré
+        assert!(report.contains("OCR COMPARISON REPORT"));
+        assert!(report.contains("Character Error Rate (CER):"));
+        assert!(report.contains("COMPARISON:"));
+
+        // 2 accents : développement→developpement, nécessite→necessite
+        // 2 erreurs sur 50 caractères = 4% → Excellent
+        assert!(report.contains("Quality: Excellent (< 5% error)"));
+    }
+
+    #[test]
+    fn test_french_multiline() {
+        let reference =
+            "Première ligne avec des accents.\nDeuxième ligne très longue.\nTroisième ligne.";
+        let ocr = "Premiere ligne avec des accents.\nDeuxieme ligne tres longue.\nTroisieme ligne.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // 4 accents : Première→Premiere, Deuxième→Deuxieme, très→tres, Troisième→Troisieme
+        assert_eq!(metrics.levenshtein_distance, 4);
+        assert_eq!(metrics.reference_word_count, 11);
+        assert_eq!(metrics.reference_char_count, 77);
+    }
+
+    #[test]
+    fn test_french_proper_nouns() {
+        let reference = "François habite à Paris près de l'Élysée.";
+        let ocr = "Francois habite a Paris pres de l'Elysee.";
+
+        let metrics = compare_ocr_result(ocr, reference);
+        // 5 accents : François→Francois, à→a, près→pres, Élysée→Elysee (2 accents)
+        assert_eq!(metrics.levenshtein_distance, 5);
+        assert!((metrics.cer - 5.0 / 41.0).abs() < 0.001); // ~12.2%
+        assert_eq!(metrics.reference_char_count, 41);
+    }
 }
