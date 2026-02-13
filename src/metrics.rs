@@ -365,6 +365,61 @@ pub fn levenshtein_distance(source: &str, target: &str) -> usize {
     matrix[source_len][target_len]
 }
 
+/// Calcule le CER (Character Error Rate) entre le texte OCR et le texte de référence.
+///
+/// Le CER est le taux d'erreur au niveau des caractères, calculé comme le rapport
+/// entre la distance de Levenshtein et le nombre de caractères dans le texte de référence.
+///
+/// **Formule** : CER = distance_levenshtein / nombre_caractères_référence
+///
+/// # Arguments
+///
+/// * `ocr_text` - Le texte extrait par OCR
+/// * `reference_text` - Le texte de référence attendu
+///
+/// # Retour
+///
+/// Un nombre flottant entre 0.0 et potentiellement > 1.0 :
+/// - **0.0** : Textes identiques (aucune erreur)
+/// - **< 1.0** : Présence d'erreurs, mais moins d'opérations que de caractères de référence
+/// - **1.0** : Nombre d'erreurs égal au nombre de caractères de référence
+/// - **> 1.0** : Plus d'erreurs que de caractères de référence (cas rare, nombreuses insertions)
+///
+/// # Cas particuliers
+///
+/// - Si le texte de référence est vide, retourne 0.0 si l'OCR est aussi vide, sinon 1.0
+/// - Si les deux textes sont vides, retourne 0.0 (considéré comme une correspondance parfaite)
+///
+/// # Exemples
+///
+/// ```
+/// use text_recognition::metrics::calculate_cer;
+///
+/// // Textes identiques
+/// let cer = calculate_cer("hello world", "hello world");
+/// assert_eq!(cer, 0.0);
+///
+/// // Une erreur sur 11 caractères
+/// let cer = calculate_cer("hallo world", "hello world");
+/// assert!((cer - 0.0909).abs() < 0.001); // ≈ 1/11 = 0.0909
+///
+/// // Texte complètement différent
+/// let cer = calculate_cer("abc", "xyz");
+/// assert_eq!(cer, 1.0); // 3 erreurs sur 3 caractères
+/// ```
+pub fn calculate_cer(ocr_text: &str, reference_text: &str) -> f64 {
+    let reference_len = reference_text.chars().count();
+
+    // Cas particulier : texte de référence vide
+    if reference_len == 0 {
+        let ocr_len = ocr_text.chars().count();
+        return if ocr_len == 0 { 0.0 } else { 1.0 };
+    }
+
+    let distance = levenshtein_distance(ocr_text, reference_text);
+    distance as f64 / reference_len as f64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,5 +483,81 @@ mod tests {
     fn test_levenshtein_case_sensitive() {
         assert_eq!(levenshtein_distance("Hello", "hello"), 1);
         assert_eq!(levenshtein_distance("HELLO", "hello"), 5);
+    }
+
+    #[test]
+    fn test_calculate_cer_identical_texts() {
+        assert_eq!(calculate_cer("hello world", "hello world"), 0.0);
+        assert_eq!(calculate_cer("", ""), 0.0);
+        assert_eq!(calculate_cer("test", "test"), 0.0);
+    }
+
+    #[test]
+    fn test_calculate_cer_empty_reference() {
+        // Référence vide, OCR vide : match parfait
+        assert_eq!(calculate_cer("", ""), 0.0);
+
+        // Référence vide, OCR non vide : erreur complète
+        assert_eq!(calculate_cer("something", ""), 1.0);
+    }
+
+    #[test]
+    fn test_calculate_cer_empty_ocr() {
+        // OCR vide, référence non vide : 100% d'erreur
+        let cer = calculate_cer("", "hello");
+        assert_eq!(cer, 1.0); // 5 suppressions sur 5 caractères
+    }
+
+    #[test]
+    fn test_calculate_cer_single_error() {
+        // 1 erreur sur 11 caractères
+        let cer = calculate_cer("hallo world", "hello world");
+        assert!((cer - 1.0 / 11.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_calculate_cer_multiple_errors() {
+        // "kitten" (OCR) vs "sitting" (référence) : 3 erreurs sur 7 caractères
+        let cer = calculate_cer("kitten", "sitting");
+        assert!((cer - 3.0 / 7.0).abs() < 0.001); // ≈ 0.4286
+    }
+
+    #[test]
+    fn test_calculate_cer_completely_wrong() {
+        // Texte complètement différent : 100% d'erreur
+        let cer = calculate_cer("abc", "xyz");
+        assert_eq!(cer, 1.0); // 3 erreurs sur 3 caractères
+    }
+
+    #[test]
+    fn test_calculate_cer_more_than_100_percent() {
+        // OCR beaucoup plus long que la référence : CER > 1.0
+        let cer = calculate_cer("aaaaaaaaaa", "a");
+        assert_eq!(cer, 9.0); // 9 insertions sur 1 caractère de référence
+    }
+
+    #[test]
+    fn test_calculate_cer_unicode() {
+        // Test avec caractères Unicode
+        let cer = calculate_cer("café", "café");
+        assert_eq!(cer, 0.0);
+
+        // 1 erreur (é → e) sur 4 caractères
+        let cer = calculate_cer("cafe", "café");
+        assert_eq!(cer, 0.25); // 1/4
+    }
+
+    #[test]
+    fn test_calculate_cer_case_sensitive() {
+        // La casse compte : "Hello" vs "hello" = 1 erreur sur 5 caractères
+        let cer = calculate_cer("Hello", "hello");
+        assert_eq!(cer, 0.2); // 1/5
+    }
+
+    #[test]
+    fn test_calculate_cer_whitespace() {
+        // Les espaces comptent
+        let cer = calculate_cer("helloworld", "hello world");
+        assert!((cer - 1.0 / 11.0).abs() < 0.001); // 1 suppression d'espace
     }
 }
