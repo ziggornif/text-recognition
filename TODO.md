@@ -19,7 +19,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **1.9** - Implémenter `OcrEngine::extract_text_from_file()`
 - [x] **1.10** - Créer `src/lib.rs` avec exports publics
 - [x] **1.11** - Créer `src/main.rs` avec CLI minimale (clap)
-- [ ] **1.12** - Test manuel avec une image simple
+- [x] **1.12** - Test manuel avec une image simple
 
 ---
 
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 11
-- **Tâches restantes** : 56
-- **Progression** : 16.4%
+- **Tâches complétées** : 12
+- **Tâches restantes** : 55
+- **Progression** : 17.9%
 
 ---
 
