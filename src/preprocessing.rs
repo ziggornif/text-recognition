@@ -117,6 +117,13 @@ pub fn preprocess_image(
         img = DynamicImage::ImageLuma8(to_grayscale(&img));
     }
 
+    // Débruitage (avant ajustement de contraste et binarisation)
+    if config.denoise {
+        let gray = img.to_luma8();
+        let denoised = denoise(&gray);
+        img = DynamicImage::ImageLuma8(denoised);
+    }
+
     // Ajustement de contraste (doit être fait avant la binarisation)
     if config.adjust_contrast {
         let gray = img.to_luma8();
@@ -194,6 +201,60 @@ pub fn adjust_contrast(image: &GrayImage, factor: f32) -> GrayImage {
         let new_value = ((value - 128.0) * factor) + 128.0;
         // Clamper entre 0 et 255
         pixel[0] = new_value.clamp(0.0, 255.0) as u8;
+    }
+
+    output
+}
+
+/// Applique un filtre de débruitage à une image en niveaux de gris.
+///
+/// Cette fonction utilise un filtre médian 3x3 pour réduire le bruit salt-and-pepper
+/// (poivre et sel) tout en préservant les contours. Le filtre médian remplace chaque
+/// pixel par la valeur médiane de son voisinage.
+///
+/// Le filtre médian est particulièrement efficace pour :
+/// - Réduire le bruit impulsionnel (pixels isolés noirs ou blancs)
+/// - Préserver les contours et les détails du texte
+/// - Améliorer la qualité avant binarisation
+///
+/// # Arguments
+///
+/// * `image` - L'image en niveaux de gris à débruiter
+///
+/// # Exemple
+///
+/// ```no_run
+/// use text_recognition::preprocessing::{to_grayscale, denoise};
+/// use image::open;
+///
+/// let img = open("noisy_document.png").unwrap();
+/// let gray = to_grayscale(&img);
+/// let denoised = denoise(&gray);
+/// ```
+pub fn denoise(image: &GrayImage) -> GrayImage {
+    let (width, height) = image.dimensions();
+    let mut output = image.clone();
+
+    // Appliquer un filtre médian 3x3
+    for y in 1..height - 1 {
+        for x in 1..width - 1 {
+            // Collecter les valeurs du voisinage 3x3
+            let mut neighbors = [0u8; 9];
+            let mut idx = 0;
+
+            for dy in 0..3 {
+                for dx in 0..3 {
+                    neighbors[idx] = image.get_pixel(x + dx - 1, y + dy - 1)[0];
+                    idx += 1;
+                }
+            }
+
+            // Trier et prendre la médiane
+            neighbors.sort_unstable();
+            let median = neighbors[4]; // Élément du milieu (index 4 sur 9)
+
+            output.put_pixel(x, y, image::Luma([median]));
+        }
     }
 
     output
@@ -620,6 +681,106 @@ mod tests {
             result.get_pixel(0, 1)[0],
             255,
             "Very bright pixel with high contrast should clamp to 255"
+        );
+    }
+
+    #[test]
+    fn test_denoise_removes_salt_and_pepper() {
+        use image::Luma;
+
+        // Créer une image 5x5 avec bruit salt-and-pepper
+        let mut img = GrayImage::new(5, 5);
+
+        // Remplir avec une valeur uniforme
+        for y in 0..5 {
+            for x in 0..5 {
+                img.put_pixel(x, y, Luma([128]));
+            }
+        }
+
+        // Ajouter du bruit (pixels isolés)
+        img.put_pixel(2, 2, Luma([0])); // Pepper (noir)
+        img.put_pixel(1, 1, Luma([255])); // Salt (blanc)
+        img.put_pixel(3, 3, Luma([255])); // Salt (blanc)
+
+        let denoised = denoise(&img);
+
+        // Les pixels bruités au centre devraient être corrigés
+        // Le filtre médian remplace les valeurs aberrantes par la médiane du voisinage
+        assert_ne!(
+            denoised.get_pixel(2, 2)[0],
+            0,
+            "Pepper noise should be removed"
+        );
+        assert_ne!(
+            denoised.get_pixel(1, 1)[0],
+            255,
+            "Salt noise should be removed"
+        );
+
+        // Les pixels corrigés devraient être proches de 128
+        assert!(
+            (denoised.get_pixel(2, 2)[0] as i16 - 128).abs() < 10,
+            "Denoised pixel should be close to 128"
+        );
+    }
+
+    #[test]
+    fn test_denoise_preserves_edges() {
+        use image::Luma;
+
+        // Créer une image avec un contour net (moitié noire, moitié blanche)
+        let mut img = GrayImage::new(5, 5);
+
+        for y in 0..5 {
+            for x in 0..5 {
+                let value = if x < 2 { 50 } else { 200 };
+                img.put_pixel(x, y, Luma([value]));
+            }
+        }
+
+        let denoised = denoise(&img);
+
+        // Les zones uniformes devraient rester similaires
+        assert_eq!(
+            denoised.get_pixel(1, 2)[0],
+            50,
+            "Dark area should be preserved"
+        );
+        assert_eq!(
+            denoised.get_pixel(3, 2)[0],
+            200,
+            "Bright area should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_denoise_median_calculation() {
+        use image::Luma;
+
+        // Créer une image de test 3x3 avec des valeurs connues
+        let mut img = GrayImage::new(3, 3);
+        let values = [
+            [10, 20, 30],
+            [40, 100, 60], // Centre = 100, médiane du voisinage devrait être calculée
+            [70, 80, 90],
+        ];
+
+        for y in 0..3 {
+            for x in 0..3 {
+                img.put_pixel(x, y, Luma([values[y as usize][x as usize]]));
+            }
+        }
+
+        let denoised = denoise(&img);
+
+        // Le pixel central devrait être la médiane de [10,20,30,40,100,60,70,80,90]
+        // Trié: [10,20,30,40,60,70,80,90,100]
+        // Médiane (index 4): 60
+        assert_eq!(
+            denoised.get_pixel(1, 1)[0],
+            60,
+            "Center pixel should be the median of neighborhood"
         );
     }
 }
