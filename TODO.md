@@ -60,12 +60,12 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Phase 4 : Métriques
 
 - [x] **4.1** - Créer `src/metrics.rs`
-- [ ] **4.2** - Créer structure `OcrMetrics`
-- [ ] **4.3** - Créer enum `TextError`
-- [ ] **4.4** - Implémenter distance de Levenshtein
-- [ ] **4.5** - Implémenter `calculate_cer()`
-- [ ] **4.6** - Implémenter `calculate_wer()`
-- [ ] **4.7** - Implémenter `compare_ocr_result()`
+- [x] **4.2** - Créer structure `OcrMetrics`
+- [x] **4.3** - Créer enum `TextError`
+- [x] **4.4** - Implémenter distance de Levenshtein
+- [x] **4.5** - Implémenter `calculate_cer()`
+- [x] **4.6** - Implémenter `calculate_wer()`
+- [x] **4.7** - Implémenter `compare_ocr_result()`
 - [ ] **4.8** - Implémenter `generate_diff_report()`
 - [ ] **4.9** - Ajouter option CLI `--expected`
 - [ ] **4.10** - Ajouter option CLI `--metrics`
@@ -120,9 +120,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 37
-- **Tâches restantes** : 30
-- **Progression** : 55.2%
+- **Tâches complétées** : 43
+- **Tâches restantes** : 24
+- **Progression** : 64.2%
 
 ---
 
