@@ -5,7 +5,9 @@
 //! des images avec différentes configurations.
 
 use crate::config::OcrConfig;
+use crate::preprocessing::{PreprocessingConfig, preprocess_image};
 use anyhow::{Context, Result};
+use image::DynamicImage;
 use std::path::Path;
 
 /// Moteur OCR principal basé sur Tesseract.
@@ -25,8 +27,9 @@ use std::path::Path;
 #[derive(Debug)]
 pub struct OcrEngine {
     /// Configuration du moteur OCR.
-    #[allow(dead_code)]
     config: OcrConfig,
+    /// Configuration optionnelle du prétraitement d'images.
+    preprocessing_config: Option<PreprocessingConfig>,
 }
 
 impl OcrEngine {
@@ -65,7 +68,45 @@ impl OcrEngine {
     pub fn new(config: OcrConfig) -> Result<Self> {
         // Pour l'instant, on crée simplement la structure
         // La validation de Tesseract sera faite lors de l'utilisation réelle
-        Ok(Self { config })
+        Ok(Self {
+            config,
+            preprocessing_config: None,
+        })
+    }
+
+    /// Crée un nouveau moteur OCR avec configuration de prétraitement.
+    ///
+    /// Cette méthode permet d'activer le prétraitement d'images avant l'OCR,
+    /// ce qui peut améliorer significativement la qualité des résultats.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration du moteur OCR
+    /// * `preprocessing_config` - Configuration du prétraitement d'images
+    ///
+    /// # Exemple
+    ///
+    /// ```no_run
+    /// use text_recognition::ocr::OcrEngine;
+    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::preprocessing::{PreprocessingConfig, BinarizationMethod};
+    ///
+    /// let ocr_config = OcrConfig::default();
+    /// let mut preprocess_config = PreprocessingConfig::default();
+    /// preprocess_config.binarize = true;
+    /// preprocess_config.binarization_method = BinarizationMethod::Otsu;
+    ///
+    /// let engine = OcrEngine::with_preprocessing(ocr_config, preprocess_config)
+    ///     .expect("Échec initialisation OCR");
+    /// ```
+    pub fn with_preprocessing(
+        config: OcrConfig,
+        preprocessing_config: PreprocessingConfig,
+    ) -> Result<Self> {
+        Ok(Self {
+            config,
+            preprocessing_config: Some(preprocessing_config),
+        })
     }
 
     /// Extrait le texte d'une image.
@@ -116,8 +157,114 @@ impl OcrEngine {
             anyhow::bail!("Le fichier '{}' n'existe pas", path.display());
         }
 
+        // Si le prétraitement est activé, charger et prétraiter l'image
+        if let Some(ref preprocess_config) = self.preprocessing_config {
+            let img = image::open(path)
+                .with_context(|| format!("Échec du chargement de l'image '{}'", path.display()))?;
+
+            let preprocessed = preprocess_image(&img, preprocess_config)
+                .context("Échec du prétraitement de l'image")?;
+
+            return self.extract_text_from_image(&preprocessed);
+        }
+
+        // Sinon, utiliser directement le chemin du fichier
         // Convertir le chemin en string
         let path_str = path.to_str().context("Chemin invalide")?;
+
+        // Initialiser Tesseract avec la langue configurée
+        let mut tesseract = tesseract::Tesseract::new(None, Some(&self.config.language))
+            .context("Échec de l'initialisation de Tesseract")?;
+
+        // Appliquer le mode de segmentation de page
+        let psm = match self.config.page_seg_mode {
+            crate::config::PageSegMode::OsdOnly => tesseract::PageSegMode::PsmOsdOnly,
+            crate::config::PageSegMode::AutoOsd => tesseract::PageSegMode::PsmAutoOsd,
+            crate::config::PageSegMode::AutoOnly => tesseract::PageSegMode::PsmAutoOnly,
+            crate::config::PageSegMode::Auto => tesseract::PageSegMode::PsmAuto,
+            crate::config::PageSegMode::SingleColumn => tesseract::PageSegMode::PsmSingleColumn,
+            crate::config::PageSegMode::SingleBlockVertText => {
+                tesseract::PageSegMode::PsmSingleBlockVertText
+            }
+            crate::config::PageSegMode::SingleBlock => tesseract::PageSegMode::PsmSingleBlock,
+            crate::config::PageSegMode::SingleLine => tesseract::PageSegMode::PsmSingleLine,
+            crate::config::PageSegMode::SingleWord => tesseract::PageSegMode::PsmSingleWord,
+            crate::config::PageSegMode::CircleWord => tesseract::PageSegMode::PsmCircleWord,
+            crate::config::PageSegMode::SingleChar => tesseract::PageSegMode::PsmSingleChar,
+            crate::config::PageSegMode::SparseText => tesseract::PageSegMode::PsmSparseText,
+            crate::config::PageSegMode::SparseTextOsd => tesseract::PageSegMode::PsmSparseTextOsd,
+            crate::config::PageSegMode::RawLine => tesseract::PageSegMode::PsmRawLine,
+        };
+        tesseract.set_page_seg_mode(psm);
+
+        // Appliquer le DPI
+        tesseract = tesseract
+            .set_variable("user_defined_dpi", &self.config.dpi.to_string())
+            .context("Échec de la configuration du DPI")?;
+
+        // Appliquer toutes les variables Tesseract personnalisées
+        for (key, value) in &self.config.tesseract_variables {
+            tesseract = tesseract
+                .set_variable(key, value)
+                .with_context(|| format!("Échec de la configuration de la variable '{}'", key))?;
+        }
+
+        // Charger l'image
+        tesseract = tesseract
+            .set_image(path_str)
+            .context("Échec du chargement de l'image")?;
+
+        // Extraire le texte
+        let text = tesseract
+            .get_text()
+            .context("Échec de l'extraction du texte")?;
+
+        Ok(text)
+    }
+
+    /// Extrait le texte d'une image en mémoire.
+    ///
+    /// Cette méthode prend une `DynamicImage` et utilise Tesseract pour
+    /// extraire son contenu textuel. Utile lorsque l'image a déjà été
+    /// chargée ou prétraitée en mémoire.
+    ///
+    /// # Arguments
+    ///
+    /// * `image` - L'image à analyser
+    ///
+    /// # Exemple
+    ///
+    /// ```no_run
+    /// use text_recognition::ocr::OcrEngine;
+    /// use text_recognition::config::OcrConfig;
+    /// use image::open;
+    ///
+    /// let config = OcrConfig::default();
+    /// let engine = OcrEngine::new(config)?;
+    ///
+    /// let img = open("document.png")?;
+    /// let text = engine.extract_text_from_image(&img)?;
+    /// println!("Texte: {}", text);
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    ///
+    /// # Erreurs
+    ///
+    /// Retourne une erreur si :
+    /// - Tesseract échoue lors de l'extraction
+    /// - L'image ne peut pas être convertie dans un format compatible
+    /// - Une variable Tesseract invalide est définie
+    pub fn extract_text_from_image(&self, image: &DynamicImage) -> Result<String> {
+        // Sauvegarder temporairement l'image pour Tesseract
+        // (Tesseract nécessite un chemin de fichier)
+        let temp_dir = tempfile::tempdir().context("Échec de création du répertoire temporaire")?;
+        let temp_path = temp_dir.path().join("temp_image.png");
+
+        image
+            .save(&temp_path)
+            .context("Échec de la sauvegarde de l'image temporaire")?;
+
+        let path_str = temp_path.to_str().context("Chemin temporaire invalide")?;
 
         // Initialiser Tesseract avec la langue configurée
         let mut tesseract = tesseract::Tesseract::new(None, Some(&self.config.language))

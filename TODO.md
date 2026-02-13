@@ -46,11 +46,11 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **3.4** - Implémenter `to_grayscale()`
 - [x] **3.5** - Implémenter `binarize()` avec méthode Otsu
 - [x] **3.6** - Implémenter `binarize()` avec seuil fixe
-- [ ] **3.7** - Implémenter `binarize()` avec méthode adaptative
-- [ ] **3.8** - Implémenter `adjust_contrast()`
-- [ ] **3.9** - Implémenter `denoise()`
-- [ ] **3.10** - Implémenter `deskew()`
-- [ ] **3.11** - Implémenter `preprocess_image()` (pipeline complet)
+- [x] **3.7** - Implémenter `binarize()` avec méthode adaptative
+- [x] **3.8** - Implémenter `adjust_contrast()`
+- [x] **3.9** - Implémenter `denoise()`
+- [x] **3.10** - Implémenter `deskew()`
+- [x] **3.11** - Implémenter `preprocess_image()` (pipeline complet)
 - [ ] **3.12** - Intégrer prétraitement dans `OcrEngine`
 - [ ] **3.13** - Ajouter option CLI `--preprocess`
 - [ ] **3.14** - Créer tests unitaires du prétraitement
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 28
-- **Tâches restantes** : 39
-- **Progression** : 41.8%
+- **Tâches complétées** : 33
+- **Tâches restantes** : 34
+- **Progression** : 49.3%
 
 ---
 
