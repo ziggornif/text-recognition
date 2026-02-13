@@ -75,11 +75,11 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 
 ## Phase 5 : Tests
 
-- [ ] **5.1** - Créer structure `test_images/` avec sous-dossiers
-- [ ] **5.2** - Ajouter 3 images dans `test_images/simple/`
-- [ ] **5.3** - Ajouter 3 images dans `test_images/medium/`
-- [ ] **5.4** - Ajouter 3 images dans `test_images/complex/`
-- [ ] **5.5** - Créer fichiers `.txt` correspondants dans `test_images/expected/`
+- [x] **5.1** - Créer structure `resources/` avec sous-dossiers (simple/medium/complex/expected)
+- [ ] **5.2** - Organiser les images existantes dans `resources/simple/` (3 images)
+- [ ] **5.3** - Organiser les images existantes dans `resources/medium/` (3 images)
+- [ ] **5.4** - Organiser les images existantes dans `resources/complex/` (2 images)
+- [ ] **5.5** - Créer fichiers `.txt` correspondants dans `resources/expected/`
 - [ ] **5.6** - Créer `tests/integration_tests.rs` avec tests basiques
 - [ ] **5.7** - Créer `tests/psm_tests.rs` avec tests de tous les modes PSM
 - [ ] **5.8** - Créer `tests/preprocessing_tests.rs` avec tests de prétraitement
@@ -120,9 +120,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 47
-- **Tâches restantes** : 20
-- **Progression** : 70.1%
+- **Tâches complétées** : 48
+- **Tâches restantes** : 19
+- **Progression** : 71.6%
 
 ---
 
