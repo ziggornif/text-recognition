@@ -420,6 +420,142 @@ pub fn calculate_cer(ocr_text: &str, reference_text: &str) -> f64 {
     distance as f64 / reference_len as f64
 }
 
+/// Calcule le WER (Word Error Rate) entre le texte OCR et le texte de référence.
+///
+/// Le WER est le taux d'erreur au niveau des mots, calculé comme le rapport
+/// entre la distance de Levenshtein au niveau des mots et le nombre de mots
+/// dans le texte de référence.
+///
+/// **Formule** : WER = distance_levenshtein_mots / nombre_mots_référence
+///
+/// Les mots sont définis comme des séquences de caractères non-blancs séparées
+/// par des espaces blancs.
+///
+/// # Arguments
+///
+/// * `ocr_text` - Le texte extrait par OCR
+/// * `reference_text` - Le texte de référence attendu
+///
+/// # Retour
+///
+/// Un nombre flottant entre 0.0 et potentiellement > 1.0 :
+/// - **0.0** : Tous les mots sont identiques
+/// - **< 1.0** : Présence d'erreurs, mais moins d'opérations que de mots de référence
+/// - **1.0** : Nombre d'erreurs égal au nombre de mots de référence
+/// - **> 1.0** : Plus d'erreurs que de mots de référence (cas rare)
+///
+/// # Cas particuliers
+///
+/// - Si le texte de référence est vide, retourne 0.0 si l'OCR est aussi vide, sinon 1.0
+/// - Si les deux textes sont vides, retourne 0.0
+/// - Les espaces multiples sont normalisés (traités comme un seul séparateur)
+///
+/// # Exemples
+///
+/// ```
+/// use text_recognition::metrics::calculate_wer;
+///
+/// // Textes identiques
+/// let wer = calculate_wer("hello world", "hello world");
+/// assert_eq!(wer, 0.0);
+///
+/// // Un mot différent sur 2
+/// let wer = calculate_wer("hello universe", "hello world");
+/// assert_eq!(wer, 0.5); // 1 erreur sur 2 mots
+///
+/// // Un mot manquant
+/// let wer = calculate_wer("hello", "hello world");
+/// assert_eq!(wer, 0.5); // 1 suppression sur 2 mots
+///
+/// // Un mot ajouté
+/// let wer = calculate_wer("hello big world", "hello world");
+/// assert_eq!(wer, 0.5); // 1 insertion sur 2 mots
+/// ```
+///
+/// # Note
+///
+/// Le WER utilise l'algorithme de Levenshtein au niveau des mots entiers,
+/// donc même une petite différence dans un mot (ex: "hello" vs "helo")
+/// compte comme une erreur complète.
+pub fn calculate_wer(ocr_text: &str, reference_text: &str) -> f64 {
+    // Diviser en mots (séquences non-blanches)
+    let reference_words: Vec<&str> = reference_text.split_whitespace().collect();
+    let ocr_words: Vec<&str> = ocr_text.split_whitespace().collect();
+
+    let reference_word_count = reference_words.len();
+
+    // Cas particulier : texte de référence vide
+    if reference_word_count == 0 {
+        let ocr_word_count = ocr_words.len();
+        return if ocr_word_count == 0 { 0.0 } else { 1.0 };
+    }
+
+    // Calculer la distance de Levenshtein au niveau des mots
+    let distance = word_levenshtein_distance(&ocr_words, &reference_words);
+    distance as f64 / reference_word_count as f64
+}
+
+/// Calcule la distance de Levenshtein entre deux séquences de mots.
+///
+/// Similaire à `levenshtein_distance` mais opère sur des mots entiers
+/// plutôt que sur des caractères individuels.
+///
+/// # Arguments
+///
+/// * `source` - Séquence de mots source (texte OCR)
+/// * `target` - Séquence de mots cible (texte de référence)
+///
+/// # Retour
+///
+/// Le nombre minimal d'opérations (insertion, suppression, substitution de mots)
+/// nécessaires pour transformer `source` en `target`.
+fn word_levenshtein_distance(source: &[&str], target: &[&str]) -> usize {
+    let source_len = source.len();
+    let target_len = target.len();
+
+    // Cas de base : si une des séquences est vide
+    if source_len == 0 {
+        return target_len;
+    }
+    if target_len == 0 {
+        return source_len;
+    }
+
+    // Créer une matrice (source_len + 1) × (target_len + 1)
+    let mut matrix = vec![vec![0usize; target_len + 1]; source_len + 1];
+
+    // Initialiser la première colonne (suppressions depuis source)
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..=source_len {
+        matrix[i][0] = i;
+    }
+
+    // Initialiser la première ligne (insertions pour atteindre target)
+    #[allow(clippy::needless_range_loop)]
+    for j in 0..=target_len {
+        matrix[0][j] = j;
+    }
+
+    // Remplir la matrice
+    for i in 1..=source_len {
+        for j in 1..=target_len {
+            // Coût de substitution : 0 si les mots sont identiques, 1 sinon
+            let substitution_cost = if source[i - 1] == target[j - 1] { 0 } else { 1 };
+
+            matrix[i][j] = std::cmp::min(
+                std::cmp::min(
+                    matrix[i - 1][j] + 1, // Suppression
+                    matrix[i][j - 1] + 1, // Insertion
+                ),
+                matrix[i - 1][j - 1] + substitution_cost, // Substitution
+            );
+        }
+    }
+
+    // La distance est dans la dernière cellule
+    matrix[source_len][target_len]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -559,5 +695,106 @@ mod tests {
         // Les espaces comptent
         let cer = calculate_cer("helloworld", "hello world");
         assert!((cer - 1.0 / 11.0).abs() < 0.001); // 1 suppression d'espace
+    }
+
+    #[test]
+    fn test_calculate_wer_identical_texts() {
+        assert_eq!(calculate_wer("hello world", "hello world"), 0.0);
+        assert_eq!(calculate_wer("", ""), 0.0);
+        assert_eq!(calculate_wer("one two three", "one two three"), 0.0);
+    }
+
+    #[test]
+    fn test_calculate_wer_empty_reference() {
+        // Référence vide, OCR vide : match parfait
+        assert_eq!(calculate_wer("", ""), 0.0);
+
+        // Référence vide, OCR non vide : erreur complète
+        assert_eq!(calculate_wer("hello world", ""), 1.0);
+    }
+
+    #[test]
+    fn test_calculate_wer_empty_ocr() {
+        // OCR vide, référence non vide : 100% d'erreur
+        let wer = calculate_wer("", "hello world");
+        assert_eq!(wer, 1.0); // 2 suppressions de mots sur 2 mots
+    }
+
+    #[test]
+    fn test_calculate_wer_single_word_substitution() {
+        // 1 mot différent sur 2
+        let wer = calculate_wer("hello universe", "hello world");
+        assert_eq!(wer, 0.5); // 1 erreur sur 2 mots
+    }
+
+    #[test]
+    fn test_calculate_wer_word_deletion() {
+        // Un mot manquant
+        let wer = calculate_wer("hello", "hello world");
+        assert_eq!(wer, 0.5); // 1 suppression sur 2 mots
+    }
+
+    #[test]
+    fn test_calculate_wer_word_insertion() {
+        // Un mot ajouté
+        let wer = calculate_wer("hello big world", "hello world");
+        assert_eq!(wer, 0.5); // 1 insertion sur 2 mots
+    }
+
+    #[test]
+    fn test_calculate_wer_multiple_errors() {
+        // Plusieurs erreurs
+        let wer = calculate_wer("hello big universe", "hello world");
+        assert_eq!(wer, 1.0); // 2 erreurs sur 2 mots
+    }
+
+    #[test]
+    fn test_calculate_wer_completely_wrong() {
+        // Tous les mots sont différents
+        let wer = calculate_wer("one two three", "four five six");
+        assert_eq!(wer, 1.0); // 3 erreurs sur 3 mots
+    }
+
+    #[test]
+    fn test_calculate_wer_character_difference_in_word() {
+        // Une petite différence dans un mot compte comme erreur complète au niveau WER
+        let wer = calculate_wer("helo world", "hello world");
+        assert_eq!(wer, 0.5); // 1 mot différent sur 2
+    }
+
+    #[test]
+    fn test_calculate_wer_extra_whitespace() {
+        // Les espaces multiples sont normalisés
+        let wer = calculate_wer("hello    world", "hello world");
+        assert_eq!(wer, 0.0); // Même mots après normalisation
+    }
+
+    #[test]
+    fn test_calculate_wer_case_sensitive() {
+        // La casse compte au niveau des mots
+        let wer = calculate_wer("Hello world", "hello world");
+        assert_eq!(wer, 0.5); // 1 mot différent sur 2
+    }
+
+    #[test]
+    fn test_calculate_wer_more_than_100_percent() {
+        // OCR beaucoup plus long que la référence : WER > 1.0
+        let wer = calculate_wer("one two three four five", "one");
+        assert_eq!(wer, 4.0); // 4 insertions sur 1 mot de référence
+    }
+
+    #[test]
+    fn test_word_levenshtein_distance() {
+        let source = vec!["hello", "world"];
+        let target = vec!["hello", "world"];
+        assert_eq!(word_levenshtein_distance(&source, &target), 0);
+
+        let source = vec!["hello", "big", "world"];
+        let target = vec!["hello", "world"];
+        assert_eq!(word_levenshtein_distance(&source, &target), 1);
+
+        let source = vec!["hello"];
+        let target = vec!["hello", "world"];
+        assert_eq!(word_levenshtein_distance(&source, &target), 1);
     }
 }
