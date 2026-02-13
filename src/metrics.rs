@@ -13,6 +13,148 @@
 //! - Comparer l'impact des prétraitements
 //! - Identifier les configurations optimales pour différents types d'images
 
+/// Type d'erreur identifié lors de la comparaison de textes.
+///
+/// Cette enum catégorise les différentes erreurs qui peuvent survenir
+/// lors de l'analyse de la différence entre le texte OCR et le texte de référence.
+///
+/// # Exemples
+///
+/// ```
+/// use text_recognition::metrics::TextError;
+///
+/// let error = TextError::Substitution {
+///     position: 5,
+///     expected: 'a',
+///     found: 'o',
+/// };
+///
+/// match error {
+///     TextError::Substitution { position, expected, found } => {
+///         println!("Caractère '{}' remplacé par '{}' à la position {}", expected, found, position);
+///     }
+///     _ => {}
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextError {
+    /// Un caractère a été substitué par un autre.
+    ///
+    /// Par exemple : "chat" → "chot" (a → o)
+    Substitution {
+        /// Position du caractère dans le texte de référence.
+        position: usize,
+        /// Caractère attendu.
+        expected: char,
+        /// Caractère trouvé dans le texte OCR.
+        found: char,
+    },
+
+    /// Un caractère manque dans le texte OCR.
+    ///
+    /// Par exemple : "chat" → "cht" (manque 'a')
+    Deletion {
+        /// Position du caractère manquant dans le texte de référence.
+        position: usize,
+        /// Caractère qui manque.
+        expected: char,
+    },
+
+    /// Un caractère supplémentaire a été ajouté dans le texte OCR.
+    ///
+    /// Par exemple : "chat" → "chaat" (ajout d'un 'a')
+    Insertion {
+        /// Position de l'insertion dans le texte OCR.
+        position: usize,
+        /// Caractère inséré à tort.
+        found: char,
+    },
+
+    /// Un mot entier est incorrect.
+    ///
+    /// Cette variante est utilisée pour les erreurs au niveau des mots
+    /// lors du calcul du WER.
+    WordError {
+        /// Position du mot dans le texte de référence.
+        word_position: usize,
+        /// Mot attendu.
+        expected: String,
+        /// Mot trouvé dans le texte OCR.
+        found: String,
+    },
+}
+
+impl TextError {
+    /// Retourne la position de l'erreur.
+    ///
+    /// Pour les erreurs de caractères (Substitution, Deletion, Insertion),
+    /// retourne la position du caractère. Pour WordError, retourne la position du mot.
+    ///
+    /// # Exemples
+    ///
+    /// ```
+    /// use text_recognition::metrics::TextError;
+    ///
+    /// let error = TextError::Substitution {
+    ///     position: 5,
+    ///     expected: 'a',
+    ///     found: 'o',
+    /// };
+    ///
+    /// assert_eq!(error.position(), 5);
+    /// ```
+    pub fn position(&self) -> usize {
+        match self {
+            TextError::Substitution { position, .. } => *position,
+            TextError::Deletion { position, .. } => *position,
+            TextError::Insertion { position, .. } => *position,
+            TextError::WordError { word_position, .. } => *word_position,
+        }
+    }
+
+    /// Retourne une description textuelle de l'erreur.
+    ///
+    /// # Exemples
+    ///
+    /// ```
+    /// use text_recognition::metrics::TextError;
+    ///
+    /// let error = TextError::Substitution {
+    ///     position: 5,
+    ///     expected: 'a',
+    ///     found: 'o',
+    /// };
+    ///
+    /// assert_eq!(error.description(), "Substitution: 'a' → 'o' at position 5");
+    /// ```
+    pub fn description(&self) -> String {
+        match self {
+            TextError::Substitution {
+                position,
+                expected,
+                found,
+            } => format!(
+                "Substitution: '{}' → '{}' at position {}",
+                expected, found, position
+            ),
+            TextError::Deletion { position, expected } => {
+                format!("Deletion: '{}' missing at position {}", expected, position)
+            }
+            TextError::Insertion { position, found } => {
+                format!("Insertion: '{}' added at position {}", found, position)
+            }
+            TextError::WordError {
+                word_position,
+                expected,
+                found,
+            } => format!(
+                "Word error: '{}' → '{}' at word position {}",
+                expected, found, word_position
+            ),
+        }
+    }
+}
+
 /// Résultats de la comparaison entre le texte OCR et le texte de référence.
 ///
 /// Cette structure contient toutes les métriques calculées lors de la comparaison
