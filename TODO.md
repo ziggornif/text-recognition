@@ -32,7 +32,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **2.5** - Créer `OcrConfig::screenshot_preset()`
 - [x] **2.6** - Créer `OcrConfig::single_line_preset()`
 - [x] **2.7** - Créer `OcrConfig::photo_preset()`
-- [ ] **2.8** - Ajouter option CLI `--psm`
+- [x] **2.8** - Ajouter option CLI `--psm`
 - [ ] **2.9** - Ajouter option CLI `--lang`
 - [ ] **2.10** - Créer tests unitaires pour les présets
 
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 19
-- **Tâches restantes** : 48
-- **Progression** : 28.4%
+- **Tâches complétées** : 20
+- **Tâches restantes** : 47
+- **Progression** : 29.9%
 
 ---
 
