@@ -263,3 +263,170 @@ impl Default for OcrMetrics {
         Self::zero()
     }
 }
+
+/// Calcule la distance de Levenshtein entre deux chaînes de caractères.
+///
+/// La distance de Levenshtein est le nombre minimal d'opérations nécessaires
+/// pour transformer une chaîne en une autre. Les opérations autorisées sont :
+/// - **Insertion** d'un caractère
+/// - **Suppression** d'un caractère
+/// - **Substitution** d'un caractère par un autre
+///
+/// # Arguments
+///
+/// * `source` - La chaîne source (texte OCR)
+/// * `target` - La chaîne cible (texte de référence)
+///
+/// # Retour
+///
+/// Le nombre minimal d'opérations nécessaires pour transformer `source` en `target`.
+///
+/// # Algorithme
+///
+/// Utilise la programmation dynamique avec une matrice de taille (n+1) × (m+1)
+/// où n et m sont les longueurs des deux chaînes.
+///
+/// # Exemples
+///
+/// ```
+/// use text_recognition::metrics::levenshtein_distance;
+///
+/// // Chaînes identiques
+/// assert_eq!(levenshtein_distance("chat", "chat"), 0);
+///
+/// // Une substitution
+/// assert_eq!(levenshtein_distance("chat", "chot"), 1);
+///
+/// // Une insertion
+/// assert_eq!(levenshtein_distance("chat", "chaat"), 1);
+///
+/// // Une suppression
+/// assert_eq!(levenshtein_distance("chat", "cht"), 1);
+///
+/// // Opérations multiples
+/// assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
+/// ```
+///
+/// # Complexité
+///
+/// - **Temps** : O(n × m) où n et m sont les longueurs des chaînes
+/// - **Espace** : O(n × m)
+pub fn levenshtein_distance(source: &str, target: &str) -> usize {
+    let source_chars: Vec<char> = source.chars().collect();
+    let target_chars: Vec<char> = target.chars().collect();
+
+    let source_len = source_chars.len();
+    let target_len = target_chars.len();
+
+    // Cas de base : si une des chaînes est vide
+    if source_len == 0 {
+        return target_len;
+    }
+    if target_len == 0 {
+        return source_len;
+    }
+
+    // Créer une matrice (source_len + 1) × (target_len + 1)
+    let mut matrix = vec![vec![0usize; target_len + 1]; source_len + 1];
+
+    // Initialiser la première colonne (suppressions depuis source)
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..=source_len {
+        matrix[i][0] = i;
+    }
+
+    // Initialiser la première ligne (insertions pour atteindre target)
+    #[allow(clippy::needless_range_loop)]
+    for j in 0..=target_len {
+        matrix[0][j] = j;
+    }
+
+    // Remplir la matrice
+    for i in 1..=source_len {
+        for j in 1..=target_len {
+            // Coût de substitution : 0 si les caractères sont identiques, 1 sinon
+            let substitution_cost = if source_chars[i - 1] == target_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+
+            matrix[i][j] = std::cmp::min(
+                std::cmp::min(
+                    matrix[i - 1][j] + 1, // Suppression
+                    matrix[i][j - 1] + 1, // Insertion
+                ),
+                matrix[i - 1][j - 1] + substitution_cost, // Substitution
+            );
+        }
+    }
+
+    // La distance est dans la dernière cellule
+    matrix[source_len][target_len]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_levenshtein_identical_strings() {
+        assert_eq!(levenshtein_distance("hello", "hello"), 0);
+        assert_eq!(levenshtein_distance("", ""), 0);
+        assert_eq!(levenshtein_distance("a", "a"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_empty_strings() {
+        assert_eq!(levenshtein_distance("", "hello"), 5);
+        assert_eq!(levenshtein_distance("hello", ""), 5);
+        assert_eq!(levenshtein_distance("", ""), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_single_substitution() {
+        assert_eq!(levenshtein_distance("chat", "chot"), 1);
+        assert_eq!(levenshtein_distance("hello", "hallo"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_single_insertion() {
+        assert_eq!(levenshtein_distance("chat", "chaat"), 1);
+        assert_eq!(levenshtein_distance("helo", "hello"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_single_deletion() {
+        assert_eq!(levenshtein_distance("chat", "cht"), 1);
+        assert_eq!(levenshtein_distance("hello", "hllo"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_multiple_operations() {
+        // kitten → sitting : 3 opérations
+        // k → s (substitution)
+        // e → i (substitution)
+        // + t + g (2 insertions)
+        assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
+
+        assert_eq!(levenshtein_distance("saturday", "sunday"), 3);
+    }
+
+    #[test]
+    fn test_levenshtein_completely_different() {
+        assert_eq!(levenshtein_distance("abc", "xyz"), 3);
+    }
+
+    #[test]
+    fn test_levenshtein_unicode() {
+        assert_eq!(levenshtein_distance("café", "café"), 0);
+        assert_eq!(levenshtein_distance("café", "cafe"), 1);
+        assert_eq!(levenshtein_distance("🐱", "🐶"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_case_sensitive() {
+        assert_eq!(levenshtein_distance("Hello", "hello"), 1);
+        assert_eq!(levenshtein_distance("HELLO", "hello"), 5);
+    }
+}
