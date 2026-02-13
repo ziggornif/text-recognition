@@ -117,6 +117,13 @@ pub fn preprocess_image(
         img = DynamicImage::ImageLuma8(to_grayscale(&img));
     }
 
+    // Correction de l'inclinaison (deskew - avant les autres traitements)
+    if config.deskew {
+        let gray = img.to_luma8();
+        let deskewed = deskew(&gray);
+        img = DynamicImage::ImageLuma8(deskewed);
+    }
+
     // Débruitage (avant ajustement de contraste et binarisation)
     if config.denoise {
         let gray = img.to_luma8();
@@ -138,7 +145,7 @@ pub fn preprocess_image(
         img = DynamicImage::ImageLuma8(binary);
     }
 
-    // Les autres étapes seront ajoutées dans les tâches suivantes
+    // Pipeline de prétraitement terminé
 
     Ok(img)
 }
@@ -258,6 +265,45 @@ pub fn denoise(image: &GrayImage) -> GrayImage {
     }
 
     output
+}
+
+/// Corrige l'inclinaison d'une image (deskew).
+///
+/// Cette fonction détecte et corrige l'inclinaison d'un document scanné ou photographié.
+/// Un document incliné peut réduire significativement la qualité de l'OCR.
+///
+/// **Note** : Cette implémentation actuelle est un stub simplifié qui retourne l'image
+/// sans modification. Une implémentation complète nécessiterait :
+/// - Détection automatique de l'angle d'inclinaison (transformée de Hough, projection)
+/// - Rotation de l'image avec interpolation
+/// - Gestion des bords après rotation
+///
+/// Pour l'instant, cette fonction prépare la structure pour une future implémentation.
+///
+/// # Arguments
+///
+/// * `image` - L'image en niveaux de gris à corriger
+///
+/// # Exemple
+///
+/// ```no_run
+/// use text_recognition::preprocessing::{to_grayscale, deskew};
+/// use image::open;
+///
+/// let img = open("skewed_document.png").unwrap();
+/// let gray = to_grayscale(&img);
+/// let deskewed = deskew(&gray);
+/// ```
+pub fn deskew(image: &GrayImage) -> GrayImage {
+    // TODO: Implémenter la détection d'angle et la rotation
+    // Pour l'instant, retourner l'image sans modification
+
+    // Une implémentation complète inclurait :
+    // 1. Détection de l'angle d'inclinaison (par exemple avec projection horizontale)
+    // 2. Rotation de l'image avec interpolation bilinéaire ou bicubique
+    // 3. Rognage ou remplissage des bords après rotation
+
+    image.clone()
 }
 
 /// Binarise une image en niveaux de gris en noir et blanc pur.
@@ -781,6 +827,73 @@ mod tests {
             denoised.get_pixel(1, 1)[0],
             60,
             "Center pixel should be the median of neighborhood"
+        );
+    }
+
+    #[test]
+    fn test_deskew_stub() {
+        use image::Luma;
+
+        // Créer une image de test
+        let mut img = GrayImage::new(4, 4);
+        for y in 0..4 {
+            for x in 0..4 {
+                img.put_pixel(x, y, Luma([100]));
+            }
+        }
+
+        let deskewed = deskew(&img);
+
+        // Pour l'instant, le stub retourne l'image inchangée
+        assert_eq!(deskewed.dimensions(), img.dimensions());
+
+        // Vérifier que les pixels sont identiques
+        for y in 0..4 {
+            for x in 0..4 {
+                assert_eq!(
+                    deskewed.get_pixel(x, y)[0],
+                    img.get_pixel(x, y)[0],
+                    "Deskew stub should return unchanged image"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_preprocess_pipeline_order() {
+        use image::{GenericImageView, Luma};
+
+        // Créer une image de test
+        let mut img = GrayImage::new(10, 10);
+        for y in 0..10 {
+            for x in 0..10 {
+                img.put_pixel(x, y, Luma([128]));
+            }
+        }
+
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
+        // Tester avec toutes les options activées
+        let config = PreprocessingConfig {
+            to_grayscale: true,
+            binarize: true,
+            binarization_method: BinarizationMethod::Fixed(128),
+            adjust_contrast: true,
+            contrast_factor: 1.5,
+            denoise: true,
+            deskew: true,
+        };
+
+        let result = preprocess_image(&dynamic_img, &config);
+
+        // Le pipeline devrait réussir sans erreur
+        assert!(result.is_ok(), "Preprocessing pipeline should succeed");
+
+        let processed = result.unwrap();
+        assert_eq!(
+            processed.dimensions(),
+            (10, 10),
+            "Dimensions should be preserved"
         );
     }
 }
