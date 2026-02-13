@@ -14,7 +14,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **1.4** - Créer `src/config.rs` avec structure `OcrConfig` minimale
 - [x] **1.5** - Créer enum `PageSegMode` avec les 14 variantes
 - [x] **1.6** - Implémenter `OcrConfig::default()`
-- [ ] **1.7** - Créer `src/ocr.rs` avec structure `OcrEngine`
+- [x] **1.7** - Créer `src/ocr.rs` avec structure `OcrEngine`
 - [ ] **1.8** - Implémenter `OcrEngine::new()`
 - [ ] **1.9** - Implémenter `OcrEngine::extract_text_from_file()`
 - [ ] **1.10** - Créer `src/lib.rs` avec exports publics
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 6
-- **Tâches restantes** : 61
-- **Progression** : 9.0%
+- **Tâches complétées** : 7
+- **Tâches restantes** : 60
+- **Progression** : 10.4%
 
 ---
 
