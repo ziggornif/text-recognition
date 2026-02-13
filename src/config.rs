@@ -332,4 +332,65 @@ impl OcrConfig {
             tesseract_variables: HashMap::new(),
         }
     }
+
+    /// Crée une configuration préréglée optimisée pour les photos de texte.
+    ///
+    /// Ce preset est idéal pour :
+    /// - Photos de documents prises avec smartphone
+    /// - Tableaux blancs et présentations photographiées
+    /// - Panneaux et enseignes photographiés
+    /// - Documents en conditions d'éclairage variable
+    /// - Images avec perspective ou légère déformation
+    ///
+    /// # Configuration appliquée
+    ///
+    /// - **DPI** : 200 (résolution intermédiaire-haute)
+    /// - **Variables Tesseract** :
+    ///   - `tessedit_do_invert` : "0" (désactive l'inversion automatique)
+    ///
+    /// # Mode PSM recommandé
+    ///
+    /// Pour utiliser ce preset efficacement, combinez-le avec :
+    /// - `PageSegMode::Auto` (mode 3) : Détection automatique (recommandé)
+    /// - `PageSegMode::AutoOsd` (mode 1) : Avec détection d'orientation et de script
+    /// - `PageSegMode::SparseText` (mode 11) : Pour texte dispersé
+    ///
+    /// # Note
+    ///
+    /// Les photos de texte bénéficient souvent d'un prétraitement (redressement,
+    /// amélioration du contraste, binarisation). Combinez ce preset avec les
+    /// fonctions de prétraitement pour de meilleurs résultats.
+    ///
+    /// # Exemple
+    ///
+    /// ```
+    /// use text_recognition::config::OcrConfig;
+    ///
+    /// // Créer un preset pour photos de texte
+    /// let config = OcrConfig::photo_preset();
+    /// assert_eq!(config.language, "fra");
+    /// assert_eq!(config.dpi, 200);
+    /// ```
+    ///
+    /// Pour utiliser ce preset avec un moteur OCR :
+    ///
+    /// ```no_run
+    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::ocr::OcrEngine;
+    ///
+    /// let config = OcrConfig::photo_preset();
+    /// let mut engine = OcrEngine::new(config)?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    pub fn photo_preset() -> Self {
+        let mut variables = HashMap::new();
+        // Désactiver l'inversion automatique qui peut causer des problèmes avec les photos
+        variables.insert("tessedit_do_invert".to_string(), "0".to_string());
+
+        Self {
+            language: "fra".to_string(),
+            dpi: 200,
+            tesseract_variables: variables,
+        }
+    }
 }
