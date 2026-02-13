@@ -3,10 +3,27 @@
 //! Cette bibliothèque fournit une interface simple et flexible pour
 //! extraire du texte depuis des images en utilisant Tesseract OCR.
 //!
+//! # Exemple d'utilisation
+//!
+//! ```no_run
+//! use text_recognition::{OcrEngine, OcrConfig};
+//! use std::path::Path;
+//!
+//! let config = OcrConfig::default();
+//! let engine = OcrEngine::new(config)?;
+//! let text = engine.extract_text_from_file(Path::new("image.png"))?;
+//! println!("Texte extrait: {}", text);
+//! # Ok::<(), anyhow::Error>(())
+//! ```
+//!
 //! # Modules
 //!
-//! - `config` : Configuration du moteur OCR
-//! - `ocr` : Moteur OCR principal
+//! - `config` : Configuration du moteur OCR et modes de segmentation
+//! - `ocr` : Moteur OCR principal pour l'extraction de texte
 
 pub mod config;
 pub mod ocr;
+
+// Exports publics pour faciliter l'utilisation de la bibliothèque
+pub use config::{OcrConfig, PageSegMode};
+pub use ocr::OcrEngine;
