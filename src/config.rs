@@ -178,3 +178,58 @@ impl Default for OcrConfig {
         }
     }
 }
+
+impl OcrConfig {
+    /// Crée une configuration préréglée optimisée pour les documents standards.
+    ///
+    /// Ce preset est idéal pour :
+    /// - Documents scannés multi-pages
+    /// - Pages de livres
+    /// - Articles imprimés
+    /// - Documents administratifs
+    ///
+    /// # Configuration appliquée
+    ///
+    /// - **DPI** : 300 (résolution standard pour documents scannés)
+    /// - **Variables Tesseract** :
+    ///   - `preserve_interword_spaces` : "1" (préserve les espaces multiples)
+    ///
+    /// # Mode PSM recommandé
+    ///
+    /// Pour utiliser ce preset efficacement, combinez-le avec :
+    /// - `PageSegMode::Auto` (mode 3) : Détection automatique de mise en page
+    /// - `PageSegMode::SingleColumn` (mode 4) : Pour documents en colonne unique
+    ///
+    /// # Exemple
+    ///
+    /// ```
+    /// use text_recognition::config::OcrConfig;
+    ///
+    /// // Créer un preset pour documents
+    /// let config = OcrConfig::document_preset();
+    /// assert_eq!(config.language, "fra");
+    /// assert_eq!(config.dpi, 300);
+    /// ```
+    ///
+    /// Pour utiliser ce preset avec un moteur OCR :
+    ///
+    /// ```no_run
+    /// use text_recognition::config::OcrConfig;
+    /// use text_recognition::ocr::OcrEngine;
+    ///
+    /// let config = OcrConfig::document_preset();
+    /// let mut engine = OcrEngine::new(config)?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    pub fn document_preset() -> Self {
+        let mut variables = HashMap::new();
+        // Préserver les espaces multiples pour respecter la mise en page
+        variables.insert("preserve_interword_spaces".to_string(), "1".to_string());
+
+        Self {
+            language: "fra".to_string(),
+            dpi: 300,
+            tesseract_variables: variables,
+        }
+    }
+}
