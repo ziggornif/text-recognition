@@ -70,7 +70,8 @@ impl OcrEngine {
     /// Extrait le texte d'une image.
     ///
     /// Cette méthode charge une image depuis un fichier et utilise Tesseract
-    /// pour extraire son contenu textuel.
+    /// pour extraire son contenu textuel. Elle applique automatiquement toutes
+    /// les variables de configuration Tesseract définies dans `OcrConfig`.
     ///
     /// # Arguments
     ///
@@ -82,8 +83,17 @@ impl OcrEngine {
     /// use text_recognition::ocr::OcrEngine;
     /// use text_recognition::config::OcrConfig;
     /// use std::path::Path;
+    /// use std::collections::HashMap;
     ///
-    /// let config = OcrConfig::default();
+    /// let mut variables = HashMap::new();
+    /// variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
+    ///
+    /// let config = OcrConfig {
+    ///     language: "eng".to_string(),
+    ///     dpi: 300,
+    ///     tesseract_variables: variables,
+    /// };
+    ///
     /// let engine = OcrEngine::new(config)?;
     /// let text = engine.extract_text_from_file(Path::new("image.png"))?;
     /// println!("Texte extrait: {}", text);
@@ -97,6 +107,7 @@ impl OcrEngine {
     /// - L'image est corrompue ou dans un format non supporté
     /// - Tesseract échoue lors de l'extraction
     /// - Les données linguistiques ne sont pas disponibles
+    /// - Une variable Tesseract invalide est définie
     pub fn extract_text_from_file(&self, path: &Path) -> Result<String> {
         // Vérifier que le fichier existe
         if !path.exists() {
@@ -106,11 +117,24 @@ impl OcrEngine {
         // Convertir le chemin en string
         let path_str = path.to_str().context("Chemin invalide")?;
 
-        // Initialiser Tesseract, configurer et charger l'image en chaînant les appels
+        // Initialiser Tesseract avec la langue configurée
         let mut tesseract = tesseract::Tesseract::new(None, Some(&self.config.language))
-            .context("Échec de l'initialisation de Tesseract")?
+            .context("Échec de l'initialisation de Tesseract")?;
+
+        // Appliquer le DPI
+        tesseract = tesseract
             .set_variable("user_defined_dpi", &self.config.dpi.to_string())
-            .context("Échec de la configuration du DPI")?
+            .context("Échec de la configuration du DPI")?;
+
+        // Appliquer toutes les variables Tesseract personnalisées
+        for (key, value) in &self.config.tesseract_variables {
+            tesseract = tesseract
+                .set_variable(key, value)
+                .with_context(|| format!("Échec de la configuration de la variable '{}'", key))?;
+        }
+
+        // Charger l'image
+        tesseract = tesseract
             .set_image(path_str)
             .context("Échec du chargement de l'image")?;
 
