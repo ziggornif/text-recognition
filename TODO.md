@@ -44,8 +44,8 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **3.2** - Créer structure `PreprocessingConfig`
 - [x] **3.3** - Créer enum `BinarizationMethod`
 - [x] **3.4** - Implémenter `to_grayscale()`
-- [ ] **3.5** - Implémenter `binarize()` avec méthode Otsu
-- [ ] **3.6** - Implémenter `binarize()` avec seuil fixe
+- [x] **3.5** - Implémenter `binarize()` avec méthode Otsu
+- [x] **3.6** - Implémenter `binarize()` avec seuil fixe
 - [ ] **3.7** - Implémenter `binarize()` avec méthode adaptative
 - [ ] **3.8** - Implémenter `adjust_contrast()`
 - [ ] **3.9** - Implémenter `denoise()`
@@ -119,9 +119,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 26
-- **Tâches restantes** : 41
-- **Progression** : 38.8%
+- **Tâches complétées** : 28
+- **Tâches restantes** : 39
+- **Progression** : 41.8%
 
 ---
 

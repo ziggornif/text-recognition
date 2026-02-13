@@ -279,13 +279,55 @@ fn binarize_fixed(image: &GrayImage, threshold: u8) -> GrayImage {
 /// La méthode adaptative calcule un seuil local pour chaque pixel en fonction
 /// de son voisinage, ce qui est utile pour les images avec un éclairage non uniforme.
 ///
+/// Cette implémentation utilise une fenêtre glissante de 15x15 pixels et calcule
+/// la moyenne locale comme seuil. Un pixel devient blanc si sa valeur est supérieure
+/// à la moyenne locale moins une constante (C=10).
+///
 /// # Arguments
 ///
 /// * `image` - L'image en niveaux de gris à binariser
 fn binarize_adaptive(image: &GrayImage) -> GrayImage {
-    // Pour l'instant, on retourne une implémentation simple
-    // Une vraie implémentation adaptative sera ajoutée plus tard
-    binarize_otsu(image)
+    const WINDOW_SIZE: u32 = 15;
+    const C: i32 = 10; // Constante à soustraire de la moyenne
+
+    let (width, height) = image.dimensions();
+    let mut output = GrayImage::new(width, height);
+
+    let half_window = WINDOW_SIZE / 2;
+
+    for y in 0..height {
+        for x in 0..width {
+            // Calculer les limites de la fenêtre
+            let x_start = x.saturating_sub(half_window);
+            let x_end = (x + half_window + 1).min(width);
+            let y_start = y.saturating_sub(half_window);
+            let y_end = (y + half_window + 1).min(height);
+
+            // Calculer la moyenne locale
+            let mut sum = 0u32;
+            let mut count = 0u32;
+
+            for wy in y_start..y_end {
+                for wx in x_start..x_end {
+                    sum += image.get_pixel(wx, wy)[0] as u32;
+                    count += 1;
+                }
+            }
+
+            let mean = (sum / count) as i32;
+            let threshold = (mean - C).max(0) as u8;
+
+            // Appliquer le seuil local
+            let pixel_value = image.get_pixel(x, y)[0];
+            output.put_pixel(
+                x,
+                y,
+                image::Luma([if pixel_value >= threshold { 255 } else { 0 }]),
+            );
+        }
+    }
+
+    output
 }
 
 #[cfg(test)]
@@ -383,5 +425,48 @@ mod tests {
                 pixel[0]
             );
         }
+    }
+
+    #[test]
+    fn test_binarize_adaptive() {
+        use image::Luma;
+
+        // Créer une image avec éclairage non uniforme (gradient)
+        let mut img = GrayImage::new(20, 20);
+        for y in 0..20 {
+            for x in 0..20 {
+                // Gradient de gauche (sombre) à droite (clair)
+                // Avec un pattern de texte (alternance)
+                let base = 50 + (x * 10); // Gradient 50 -> 240
+                let text_offset = if (x + y) % 3 == 0 { 0 } else { 40 };
+                let value = (base + text_offset).min(255) as u8;
+                img.put_pixel(x, y, Luma([value]));
+            }
+        }
+
+        let binary = binarize(&img, BinarizationMethod::Adaptive);
+
+        // Tous les pixels devraient être soit 0 soit 255
+        for pixel in binary.pixels() {
+            assert!(
+                pixel[0] == 0 || pixel[0] == 255,
+                "Pixel value should be 0 or 255, got {}",
+                pixel[0]
+            );
+        }
+
+        // Vérifier qu'il y a bien un mélange de pixels noirs et blancs
+        let mut black_count = 0;
+        let mut white_count = 0;
+        for pixel in binary.pixels() {
+            if pixel[0] == 0 {
+                black_count += 1;
+            } else {
+                white_count += 1;
+            }
+        }
+
+        assert!(black_count > 0, "Should have some black pixels");
+        assert!(white_count > 0, "Should have some white pixels");
     }
 }
