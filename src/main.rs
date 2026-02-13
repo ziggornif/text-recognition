@@ -21,8 +21,21 @@ struct Args {
     #[arg(value_name = "IMAGE")]
     image: PathBuf,
 
-    /// Langue pour l'OCR (ex: "fra", "eng", "eng+fra")
-    #[arg(short, long, default_value = "fra")]
+    /// Langue pour l'OCR
+    ///
+    /// Langues courantes:
+    ///   fra = Français
+    ///   eng = Anglais
+    ///   deu = Allemand
+    ///   spa = Espagnol
+    ///   ita = Italien
+    ///   por = Portugais
+    ///
+    /// Plusieurs langues peuvent être combinées avec '+' (ex: "eng+fra")
+    ///
+    /// Note: Les données linguistiques doivent être installées sur le système.
+    /// Sur Debian/Ubuntu: apt-get install tesseract-ocr-fra tesseract-ocr-eng
+    #[arg(short, long, alias = "lang", default_value = "fra")]
     language: String,
 
     /// Mode de segmentation de page (PSM: 0-13)
