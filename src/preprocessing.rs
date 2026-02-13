@@ -896,4 +896,251 @@ mod tests {
             "Dimensions should be preserved"
         );
     }
+
+    #[test]
+    fn test_to_grayscale_from_rgb() {
+        use image::{Rgb, RgbImage};
+
+        // Créer une image RGB de test
+        let mut rgb_img = RgbImage::new(3, 3);
+        rgb_img.put_pixel(0, 0, Rgb([255, 0, 0])); // Rouge
+        rgb_img.put_pixel(1, 1, Rgb([0, 255, 0])); // Vert
+        rgb_img.put_pixel(2, 2, Rgb([0, 0, 255])); // Bleu
+
+        let dynamic_img = DynamicImage::ImageRgb8(rgb_img);
+
+        // Convertir en niveaux de gris
+        let gray = to_grayscale(&dynamic_img);
+
+        // Vérifier que l'image est bien en niveaux de gris
+        assert_eq!(gray.dimensions(), (3, 3));
+
+        // Vérifier que la conversion a réussi et que les pixels ont des valeurs valides
+        // (les pixels u8 sont automatiquement dans [0, 255])
+        assert_eq!(gray.pixels().count(), 9, "Should have 9 pixels");
+    }
+
+    #[test]
+    fn test_preprocess_with_minimal_config() {
+        use image::{GenericImageView, Luma};
+
+        // Créer une image de test
+        let mut img = GrayImage::new(5, 5);
+        for y in 0..5 {
+            for x in 0..5 {
+                img.put_pixel(x, y, Luma([150]));
+            }
+        }
+
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
+        // Configuration minimale : seulement grayscale
+        let config = PreprocessingConfig {
+            to_grayscale: true,
+            binarize: false,
+            binarization_method: BinarizationMethod::Otsu,
+            adjust_contrast: false,
+            contrast_factor: 1.0,
+            denoise: false,
+            deskew: false,
+        };
+
+        let result = preprocess_image(&dynamic_img, &config);
+
+        assert!(result.is_ok(), "Minimal preprocessing should succeed");
+
+        let processed = result.unwrap();
+        assert_eq!(processed.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_preprocess_only_binarization() {
+        use image::Luma;
+
+        // Créer une image de test avec des valeurs variées
+        let mut img = GrayImage::new(4, 4);
+        for y in 0..4 {
+            for x in 0..4 {
+                let value = if (x + y) % 2 == 0 { 50 } else { 200 };
+                img.put_pixel(x, y, Luma([value]));
+            }
+        }
+
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
+        // Configuration : seulement binarisation
+        let config = PreprocessingConfig {
+            to_grayscale: false,
+            binarize: true,
+            binarization_method: BinarizationMethod::Fixed(100),
+            adjust_contrast: false,
+            contrast_factor: 1.0,
+            denoise: false,
+            deskew: false,
+        };
+
+        let result = preprocess_image(&dynamic_img, &config);
+
+        assert!(
+            result.is_ok(),
+            "Binarization-only preprocessing should succeed"
+        );
+
+        let processed = result.unwrap();
+
+        // Vérifier que l'image est bien binarisée
+        let gray_result = processed.to_luma8();
+        for pixel in gray_result.pixels() {
+            assert!(
+                pixel[0] == 0 || pixel[0] == 255,
+                "Binarized pixel should be 0 or 255, got {}",
+                pixel[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_preprocess_contrast_then_binarize() {
+        use image::Luma;
+
+        // Créer une image avec faible contraste
+        let mut img = GrayImage::new(4, 4);
+        for y in 0..4 {
+            for x in 0..4 {
+                let value = if (x + y) % 2 == 0 { 100 } else { 140 };
+                img.put_pixel(x, y, Luma([value]));
+            }
+        }
+
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
+        // Configuration : augmenter le contraste puis binariser
+        let config = PreprocessingConfig {
+            to_grayscale: false,
+            binarize: true,
+            binarization_method: BinarizationMethod::Otsu,
+            adjust_contrast: true,
+            contrast_factor: 2.0,
+            denoise: false,
+            deskew: false,
+        };
+
+        let result = preprocess_image(&dynamic_img, &config);
+
+        assert!(
+            result.is_ok(),
+            "Contrast + binarization preprocessing should succeed"
+        );
+
+        let processed = result.unwrap();
+
+        // Vérifier que le résultat est binarisé
+        let gray_result = processed.to_luma8();
+        for pixel in gray_result.pixels() {
+            assert!(
+                pixel[0] == 0 || pixel[0] == 255,
+                "Final image should be binarized"
+            );
+        }
+    }
+
+    #[test]
+    fn test_preprocess_denoise_then_binarize() {
+        use image::{GenericImageView, Luma};
+
+        // Créer une image avec du bruit
+        let mut img = GrayImage::new(5, 5);
+        for y in 0..5 {
+            for x in 0..5 {
+                img.put_pixel(x, y, Luma([128]));
+            }
+        }
+        // Ajouter des pixels bruités
+        img.put_pixel(2, 2, Luma([0]));
+        img.put_pixel(1, 1, Luma([255]));
+
+        let dynamic_img = DynamicImage::ImageLuma8(img);
+
+        // Configuration : débruiter puis binariser
+        let config = PreprocessingConfig {
+            to_grayscale: false,
+            binarize: true,
+            binarization_method: BinarizationMethod::Fixed(128),
+            adjust_contrast: false,
+            contrast_factor: 1.0,
+            denoise: true,
+            deskew: false,
+        };
+
+        let result = preprocess_image(&dynamic_img, &config);
+
+        assert!(
+            result.is_ok(),
+            "Denoise + binarization preprocessing should succeed"
+        );
+
+        let processed = result.unwrap();
+        assert_eq!(processed.dimensions(), (5, 5));
+    }
+
+    #[test]
+    fn test_binarization_method_clone() {
+        let method1 = BinarizationMethod::Otsu;
+        let method2 = method1;
+
+        assert_eq!(method1, method2);
+
+        let method3 = BinarizationMethod::Fixed(150);
+        let method4 = method3;
+
+        assert_eq!(method3, method4);
+    }
+
+    #[test]
+    fn test_preprocessing_config_clone() {
+        let config1 = PreprocessingConfig::default();
+        let config2 = config1.clone();
+
+        assert_eq!(config1.to_grayscale, config2.to_grayscale);
+        assert_eq!(config1.binarize, config2.binarize);
+        assert_eq!(config1.binarization_method, config2.binarization_method);
+        assert_eq!(config1.adjust_contrast, config2.adjust_contrast);
+        assert_eq!(config1.contrast_factor, config2.contrast_factor);
+        assert_eq!(config1.denoise, config2.denoise);
+        assert_eq!(config1.deskew, config2.deskew);
+    }
+
+    #[test]
+    fn test_binarize_all_methods() {
+        use image::Luma;
+
+        // Créer une image de test
+        let mut img = GrayImage::new(10, 10);
+        for y in 0..10 {
+            for x in 0..10 {
+                let value = if x < 5 { 60 } else { 180 };
+                img.put_pixel(x, y, Luma([value]));
+            }
+        }
+
+        // Tester chaque méthode de binarisation
+        let methods = vec![
+            BinarizationMethod::Otsu,
+            BinarizationMethod::Fixed(120),
+            BinarizationMethod::Adaptive,
+        ];
+
+        for method in methods {
+            let binary = binarize(&img, method);
+
+            // Vérifier que tous les pixels sont 0 ou 255
+            for pixel in binary.pixels() {
+                assert!(
+                    pixel[0] == 0 || pixel[0] == 255,
+                    "Binarization method {:?} should produce only 0 or 255",
+                    method
+                );
+            }
+        }
+    }
 }
