@@ -7,7 +7,9 @@ use anyhow::Result;
 use clap::Parser;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use text_recognition::{OcrConfig, OcrEngine, PageSegMode};
+use text_recognition::{
+    BinarizationMethod, OcrConfig, OcrEngine, PageSegMode, PreprocessingConfig,
+};
 
 /// Outil d'extraction de texte depuis des images (OCR).
 ///
@@ -61,6 +63,48 @@ struct Args {
     /// Résolution DPI de l'image
     #[arg(short, long, default_value_t = 300)]
     dpi: u32,
+
+    /// Activer le prétraitement d'image
+    ///
+    /// Le prétraitement peut améliorer la qualité OCR en appliquant diverses
+    /// transformations à l'image avant l'extraction de texte.
+    #[arg(long)]
+    preprocess: bool,
+
+    /// Convertir en niveaux de gris (prétraitement)
+    #[arg(long, requires = "preprocess")]
+    grayscale: bool,
+
+    /// Appliquer la binarisation (prétraitement)
+    ///
+    /// Convertit l'image en noir et blanc pur (0 ou 255).
+    #[arg(long, requires = "preprocess")]
+    binarize: bool,
+
+    /// Méthode de binarisation: otsu, fixed, adaptive
+    ///
+    /// - otsu: Calcul automatique du seuil optimal (recommandé)
+    /// - fixed:SEUIL: Seuil fixe (ex: fixed:128)
+    /// - adaptive: Seuil adaptatif local
+    #[arg(long, default_value = "otsu", requires = "binarize")]
+    binarize_method: String,
+
+    /// Appliquer un débruitage (filtre médian 3x3)
+    #[arg(long, requires = "preprocess")]
+    denoise: bool,
+
+    /// Ajuster le contraste
+    ///
+    /// Facteur de contraste (1.0 = pas de changement, >1.0 = augmentation).
+    /// Exemple: --contrast 1.5
+    #[arg(long, requires = "preprocess")]
+    contrast: Option<f32>,
+
+    /// Corriger l'inclinaison du document (deskew)
+    ///
+    /// Note: Actuellement un stub (pas encore implémenté complètement)
+    #[arg(long, requires = "preprocess")]
+    deskew: bool,
 }
 
 /// Convertit un code PSM numérique en PageSegMode.
@@ -84,6 +128,33 @@ fn psm_from_int(psm: i32) -> PageSegMode {
     }
 }
 
+/// Parse la méthode de binarisation depuis une chaîne.
+///
+/// Formats supportés:
+/// - "otsu" -> BinarizationMethod::Otsu
+/// - "fixed:128" -> BinarizationMethod::Fixed(128)
+/// - "adaptive" -> BinarizationMethod::Adaptive
+fn parse_binarization_method(method: &str) -> Result<BinarizationMethod> {
+    if method == "otsu" {
+        Ok(BinarizationMethod::Otsu)
+    } else if method == "adaptive" {
+        Ok(BinarizationMethod::Adaptive)
+    } else if let Some(threshold_str) = method.strip_prefix("fixed:") {
+        let threshold = threshold_str.parse::<u8>().map_err(|_| {
+            anyhow::anyhow!(
+                "Seuil invalide: '{}'. Doit être entre 0 et 255",
+                threshold_str
+            )
+        })?;
+        Ok(BinarizationMethod::Fixed(threshold))
+    } else {
+        anyhow::bail!(
+            "Méthode de binarisation invalide: '{}'. Utilisez 'otsu', 'adaptive', ou 'fixed:SEUIL'",
+            method
+        )
+    }
+}
+
 fn main() -> Result<()> {
     // Parser les arguments de la ligne de commande
     let args = Args::parse();
@@ -96,8 +167,25 @@ fn main() -> Result<()> {
         tesseract_variables: HashMap::new(),
     };
 
-    // Créer le moteur OCR
-    let engine = OcrEngine::new(config)?;
+    // Créer le moteur OCR avec ou sans prétraitement
+    let engine = if args.preprocess {
+        // Construire la configuration de prétraitement
+        let binarization_method = parse_binarization_method(&args.binarize_method)?;
+
+        let preprocess_config = PreprocessingConfig {
+            to_grayscale: args.grayscale,
+            binarize: args.binarize,
+            binarization_method,
+            adjust_contrast: args.contrast.is_some(),
+            contrast_factor: args.contrast.unwrap_or(1.0),
+            denoise: args.denoise,
+            deskew: args.deskew,
+        };
+
+        OcrEngine::with_preprocessing(config, preprocess_config)?
+    } else {
+        OcrEngine::new(config)?
+    };
 
     // Extraire le texte
     let text = engine.extract_text_from_file(&args.image)?;
