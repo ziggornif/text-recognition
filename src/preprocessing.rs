@@ -117,6 +117,13 @@ pub fn preprocess_image(
         img = DynamicImage::ImageLuma8(to_grayscale(&img));
     }
 
+    // Ajustement de contraste (doit être fait avant la binarisation)
+    if config.adjust_contrast {
+        let gray = img.to_luma8();
+        let contrasted = adjust_contrast(&gray, config.contrast_factor);
+        img = DynamicImage::ImageLuma8(contrasted);
+    }
+
     // Binarisation
     if config.binarize {
         let gray = img.to_luma8();
@@ -149,6 +156,47 @@ pub fn preprocess_image(
 /// ```
 pub fn to_grayscale(image: &DynamicImage) -> GrayImage {
     image.to_luma8()
+}
+
+/// Ajuste le contraste d'une image en niveaux de gris.
+///
+/// Cette fonction applique une transformation linéaire aux valeurs des pixels
+/// pour augmenter ou diminuer le contraste. Un facteur > 1.0 augmente le contraste,
+/// tandis qu'un facteur < 1.0 le diminue.
+///
+/// La formule utilisée est : `new_value = ((old_value - 128) * factor) + 128`
+/// où 128 est la valeur pivot (gris moyen).
+///
+/// # Arguments
+///
+/// * `image` - L'image en niveaux de gris à traiter
+/// * `factor` - Le facteur de contraste (recommandé: 0.5 à 3.0)
+///   - 1.0 = pas de changement
+///   - > 1.0 = augmentation du contraste
+///   - < 1.0 = diminution du contraste
+///
+/// # Exemple
+///
+/// ```no_run
+/// use text_recognition::preprocessing::{to_grayscale, adjust_contrast};
+/// use image::open;
+///
+/// let img = open("low_contrast.png").unwrap();
+/// let gray = to_grayscale(&img);
+/// let enhanced = adjust_contrast(&gray, 1.5); // Augmente le contraste de 50%
+/// ```
+pub fn adjust_contrast(image: &GrayImage, factor: f32) -> GrayImage {
+    let mut output = image.clone();
+
+    for pixel in output.pixels_mut() {
+        let value = pixel[0] as f32;
+        // Appliquer la transformation de contraste autour du point pivot (128)
+        let new_value = ((value - 128.0) * factor) + 128.0;
+        // Clamper entre 0 et 255
+        pixel[0] = new_value.clamp(0.0, 255.0) as u8;
+    }
+
+    output
 }
 
 /// Binarise une image en niveaux de gris en noir et blanc pur.
@@ -468,5 +516,110 @@ mod tests {
 
         assert!(black_count > 0, "Should have some black pixels");
         assert!(white_count > 0, "Should have some white pixels");
+    }
+
+    #[test]
+    fn test_adjust_contrast_no_change() {
+        use image::Luma;
+
+        // Créer une image de test
+        let mut img = GrayImage::new(2, 2);
+        img.put_pixel(0, 0, Luma([50]));
+        img.put_pixel(0, 1, Luma([128]));
+        img.put_pixel(1, 0, Luma([200]));
+        img.put_pixel(1, 1, Luma([100]));
+
+        // Appliquer un facteur de 1.0 (pas de changement)
+        let result = adjust_contrast(&img, 1.0);
+
+        // Les valeurs devraient être identiques
+        assert_eq!(result.get_pixel(0, 0)[0], 50);
+        assert_eq!(result.get_pixel(0, 1)[0], 128);
+        assert_eq!(result.get_pixel(1, 0)[0], 200);
+        assert_eq!(result.get_pixel(1, 1)[0], 100);
+    }
+
+    #[test]
+    fn test_adjust_contrast_increase() {
+        use image::Luma;
+
+        // Créer une image avec du gris moyen
+        let mut img = GrayImage::new(2, 2);
+        img.put_pixel(0, 0, Luma([100])); // Plus sombre que 128
+        img.put_pixel(0, 1, Luma([128])); // Point pivot
+        img.put_pixel(1, 0, Luma([150])); // Plus clair que 128
+        img.put_pixel(1, 1, Luma([180]));
+
+        // Augmenter le contraste (facteur > 1.0)
+        let result = adjust_contrast(&img, 2.0);
+
+        // Les valeurs sombres devraient être plus sombres
+        assert!(
+            result.get_pixel(0, 0)[0] < 100,
+            "Dark pixel should become darker"
+        );
+
+        // Le point pivot devrait rester à 128
+        assert_eq!(result.get_pixel(0, 1)[0], 128);
+
+        // Les valeurs claires devraient être plus claires
+        assert!(
+            result.get_pixel(1, 0)[0] > 150,
+            "Bright pixel should become brighter"
+        );
+        assert!(
+            result.get_pixel(1, 1)[0] > 180,
+            "Bright pixel should become brighter"
+        );
+    }
+
+    #[test]
+    fn test_adjust_contrast_decrease() {
+        use image::Luma;
+
+        // Créer une image avec des valeurs contrastées
+        let mut img = GrayImage::new(2, 2);
+        img.put_pixel(0, 0, Luma([50])); // Très sombre
+        img.put_pixel(0, 1, Luma([200])); // Très clair
+
+        // Diminuer le contraste (facteur < 1.0)
+        let result = adjust_contrast(&img, 0.5);
+
+        // Les valeurs devraient se rapprocher de 128
+        assert!(
+            result.get_pixel(0, 0)[0] > 50,
+            "Dark pixel should become lighter"
+        );
+        assert!(
+            result.get_pixel(0, 1)[0] < 200,
+            "Bright pixel should become darker"
+        );
+    }
+
+    #[test]
+    fn test_adjust_contrast_clamping() {
+        use image::Luma;
+
+        // Créer une image avec des valeurs extrêmes
+        let mut img = GrayImage::new(2, 2);
+        img.put_pixel(0, 0, Luma([10])); // Très sombre
+        img.put_pixel(0, 1, Luma([240])); // Très clair
+
+        // Augmenter fortement le contraste
+        let result = adjust_contrast(&img, 3.0);
+
+        // Avec facteur 3.0:
+        // Pixel 0,0: ((10 - 128) * 3.0) + 128 = -354 + 128 = -226 -> clamped to 0
+        // Pixel 0,1: ((240 - 128) * 3.0) + 128 = 336 + 128 = 464 -> clamped to 255
+        assert_eq!(
+            result.get_pixel(0, 0)[0],
+            0,
+            "Very dark pixel with high contrast should clamp to 0"
+        );
+        assert_eq!(
+            result.get_pixel(0, 1)[0],
+            255,
+            "Very bright pixel with high contrast should clamp to 255"
+        );
     }
 }
