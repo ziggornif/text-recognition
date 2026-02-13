@@ -106,13 +106,14 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 
 ## Phase 7 : Extensions (Optionnel)
 
-- [ ] **7.1** - Support de fichiers de configuration JSON/TOML
-- [ ] **7.2** - Mode batch (traiter plusieurs images)
-- [ ] **7.3** - Export de métriques en CSV
-- [ ] **7.4** - Visualisation des bounding boxes (format HOCR)
-- [ ] **7.5** - Comparaison de performances entre prétraitements
-- [ ] **7.6** - Support d'autres langues (téléchargement auto de modèles)
-- [ ] **7.7** - Interface web simple
+- [ ] **7.1** - Implémenter vraie fonction `deskew()` avec détection d'angle
+- [ ] **7.2** - Support de fichiers de configuration JSON/TOML
+- [ ] **7.3** - Mode batch (traiter plusieurs images)
+- [ ] **7.4** - Export de métriques en CSV
+- [ ] **7.5** - Visualisation des bounding boxes (format HOCR)
+- [ ] **7.6** - Comparaison de performances entre prétraitements
+- [ ] **7.7** - Support d'autres langues (téléchargement auto de modèles)
+- [ ] **7.8** - Interface web simple
 
 ---
 
