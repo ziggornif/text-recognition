@@ -79,7 +79,11 @@ pub enum PageSegMode {
 /// ```
 /// use text_recognition::config::OcrConfig;
 ///
-/// let config = OcrConfig {
+/// // Utiliser la configuration par défaut
+/// let config = OcrConfig::default();
+///
+/// // Ou créer une configuration personnalisée
+/// let custom_config = OcrConfig {
 ///     language: "eng".to_string(),
 ///     dpi: 300,
 /// };
@@ -92,4 +96,29 @@ pub struct OcrConfig {
     /// Résolution DPI de l'image (points par pouce).
     /// Une valeur typique est 300 DPI pour des documents scannés.
     pub dpi: u32,
+}
+
+impl Default for OcrConfig {
+    /// Crée une configuration OCR par défaut.
+    ///
+    /// # Valeurs par défaut
+    ///
+    /// - `language`: "eng" (anglais)
+    /// - `dpi`: 300 (résolution standard pour documents scannés)
+    ///
+    /// # Exemple
+    ///
+    /// ```
+    /// use text_recognition::config::OcrConfig;
+    ///
+    /// let config = OcrConfig::default();
+    /// assert_eq!(config.language, "eng");
+    /// assert_eq!(config.dpi, 300);
+    /// ```
+    fn default() -> Self {
+        Self {
+            language: "eng".to_string(),
+            dpi: 300,
+        }
+    }
 }
