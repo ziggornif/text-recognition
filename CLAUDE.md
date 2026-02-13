@@ -53,23 +53,55 @@ cargo test
 
 ---
 
-### Règle #3 : Messages de Commit
+### Règle #3 : Messages de Commit (Conventional Commits)
+
+**IMPORTANT** : Utiliser le format **Conventional Commits** pour tous les commits.
 
 Format des commits :
 ```
-[Phase X.Y] Brève description de la tâche
+<type>(<scope>): <description>
 
-- Détail 1
-- Détail 2
+[corps optionnel]
+
+[pied de page optionnel]
 ```
 
-Exemple :
+**Types principaux** :
+- `feat` : Nouvelle fonctionnalité
+- `fix` : Correction de bug
+- `docs` : Documentation uniquement
+- `style` : Formatage, points-virgules manquants, etc. (pas de changement de code)
+- `refactor` : Refactoring (ni nouvelle fonctionnalité ni correction)
+- `test` : Ajout ou correction de tests
+- `chore` : Tâches de maintenance (dépendances, configuration, etc.)
+- `build` : Changements du système de build ou dépendances externes
+- `ci` : Changements de configuration CI
+
+**Scope** : Identifiant de phase (phase-1.1, phase-1.2, etc.) ou module (ocr, config, preprocessing, etc.)
+
+**Exemples** :
 ```
-[Phase 1.4] Créer src/config.rs avec structure OcrConfig
+chore(phase-1.1): initialiser projet Cargo
+
+- Création du projet en tant que bibliothèque
+- Génération de Cargo.toml avec configuration de base
+- Génération de src/lib.rs avec fonction de test
+```
+
+```
+feat(config): ajouter structure OcrConfig
 
 - Ajout de la structure OcrConfig avec champs de base
 - Implémentation du trait Default
 - Documentation rustdoc
+```
+
+```
+feat(ocr): implémenter extraction de texte depuis fichier
+
+- Ajout de OcrEngine::extract_text_from_file()
+- Gestion des erreurs avec Result
+- Tests unitaires
 ```
 
 ---
