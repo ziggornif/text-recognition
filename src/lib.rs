@@ -31,8 +31,8 @@ pub mod preprocessing;
 // Exports publics pour faciliter l'utilisation de la bibliothèque
 pub use config::{OcrConfig, PageSegMode};
 pub use metrics::{
-    calculate_cer, calculate_wer, compare_ocr_result, generate_diff_report, levenshtein_distance,
-    OcrMetrics, TextError,
+    OcrMetrics, TextError, calculate_cer, calculate_wer, compare_ocr_result, generate_diff_report,
+    levenshtein_distance,
 };
 pub use ocr::OcrEngine;
 pub use preprocessing::{BinarizationMethod, PreprocessingConfig};

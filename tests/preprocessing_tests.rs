@@ -3,10 +3,10 @@
 //! Ces tests vérifient que les fonctions de prétraitement fonctionnent correctement
 //! sur de vraies images issues du répertoire resources/.
 
-use image::{open, GenericImageView};
+use image::{GenericImageView, open};
 use text_recognition::preprocessing::{
-    adjust_contrast, binarize, denoise, deskew, preprocess_image, BinarizationMethod,
-    PreprocessingConfig,
+    BinarizationMethod, PreprocessingConfig, adjust_contrast, binarize, denoise, deskew,
+    preprocess_image,
 };
 
 /// Vérifie que le prétraitement par défaut fonctionne sur une image simple.

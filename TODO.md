@@ -85,7 +85,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **5.8** - Créer `tests/preprocessing_tests.rs` avec tests de prétraitement
 - [x] **5.9** - Créer `tests/metrics_tests.rs` avec tests de métriques
 - [x] **5.10** - Ajouter option CLI `--test-all-psm`
-- [ ] **5.11** - Corriger les bugs identifiés par les tests
+- [x] **5.11** - Corriger les bugs identifiés par les tests
 
 ---
 
@@ -120,10 +120,10 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 57
-- **Tâches restantes** : 10
-- **Progression** : 85.1%
+- **Tâches complétées** : 58
+- **Tâches restantes** : 9
+- **Progression** : 86.6%
 
 ---
 
-**Dernière mise à jour** : 2026-02-13
+**Dernière mise à jour** : 2026-02-14
