@@ -1,56 +1,121 @@
 # Text Recognition - OCR Tesseract Learning
 
-Projet personnel d'apprentissage pour maîtriser Tesseract OCR avec Rust.
+Projet éducatif pour apprendre à paramétrer et utiliser Tesseract OCR avec Rust. Ce projet explore différentes configurations, prétraitements d'images et métriques de qualité pour optimiser la reconnaissance de texte.
 
-## Objectif
+## Description
 
-Apprendre à paramétrer et utiliser Tesseract OCR en testant différentes configurations, prétraitements d'images et métriques de qualité.
+**Text Recognition** est une bibliothèque et un outil en ligne de commande (CLI) qui permet de :
 
-## Stack
+- Extraire du texte depuis des images en utilisant Tesseract OCR
+- Tester différents modes de segmentation de page (PSM - Page Segmentation Mode)
+- Appliquer des prétraitements d'images pour améliorer la qualité de l'OCR
+- Mesurer la qualité des résultats avec des métriques (CER, WER, précision)
+- Comparer les résultats OCR avec des textes de référence
 
-- **Rust** - Langage principal
-- **Tesseract OCR** - Moteur de reconnaissance de texte
-- **image** - Manipulation d'images
+Ce projet est principalement **éducatif** : il permet de comprendre comment fonctionnent les différents paramètres de Tesseract et leur impact sur la qualité de reconnaissance.
 
-## Installation
+## Caractéristiques
 
-### Prérequis
+### Configuration OCR
 
+- **14 modes PSM** : Du mode automatique au mode caractère unique
+- **Présets prédéfinis** : Document, screenshot, photo, ligne unique
+- **Variables Tesseract** : Configuration fine via variables internes
+- **Support multilingue** : Français, anglais, et autres langues supportées par Tesseract
+
+### Prétraitement d'Images
+
+- **Conversion en niveaux de gris** : Simplification des images couleur
+- **Binarisation** : Trois méthodes (Otsu, seuil fixe, adaptative)
+- **Ajustement de contraste** : Amélioration de la lisibilité
+- **Débruitage** : Réduction du bruit (filtre médian)
+- **Redressement** : Correction de l'inclinaison (deskew - stub actuel)
+
+### Métriques de Qualité
+
+- **CER** (Character Error Rate) : Taux d'erreur au niveau caractère
+- **WER** (Word Error Rate) : Taux d'erreur au niveau mot
+- **Distance de Levenshtein** : Nombre d'opérations d'édition
+- **Précision** : Pourcentage de caractères corrects
+- **Rapport détaillé** : Génération de rapports de comparaison
+
+## Prérequis
+
+- **Rust** : Version 1.70 ou supérieure
+- **Tesseract OCR** : Version 4.0 ou supérieure
+- **Données linguistiques** : Au minimum `tessdata/fra.traineddata` et `tessdata/eng.traineddata`
+
+### Installation de Tesseract
+
+#### Linux (Debian/Ubuntu)
 ```bash
-# Installer Tesseract (système)
-sudo apt install tesseract-ocr libtesseract-dev libleptonica-dev
-
-# Vérifier l'installation
-tesseract --version
+sudo apt-get update
+sudo apt-get install tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
+sudo apt-get install libtesseract-dev libleptonica-dev
 ```
 
-### Build
-
+#### macOS
 ```bash
-cargo build
-cargo test
+brew install tesseract tesseract-lang
 ```
 
-## Utilisation
+#### Windows
+Télécharger l'installeur depuis [GitHub Tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
 
-```bash
-# Exécuter l'OCR sur une image
-cargo run -- <chemin_image>
-```
-
-## Structure
+## Structure du Projet
 
 ```
-src/
-├── lib.rs            # Exports publics
-├── main.rs           # CLI
-├── ocr.rs            # Wrapper Tesseract
-├── config.rs         # Configuration OCR
-├── preprocessing.rs  # Prétraitement d'images
-└── metrics.rs        # Métriques de qualité
+text-recognition/
+├── src/
+│   ├── lib.rs              # Point d'entrée de la bibliothèque
+│   ├── main.rs             # CLI
+│   ├── config.rs           # Configuration OCR et présets
+│   ├── ocr.rs              # Moteur OCR (wrapper Tesseract)
+│   ├── preprocessing.rs    # Prétraitement d'images
+│   └── metrics.rs          # Calcul de métriques
+├── tests/
+│   ├── integration_tests.rs    # Tests d'intégration
+│   ├── psm_tests.rs            # Tests des modes PSM
+│   ├── preprocessing_tests.rs  # Tests de prétraitement
+│   └── metrics_tests.rs        # Tests de métriques
+├── resources/
+│   ├── simple/             # Images simples (texte clair)
+│   ├── medium/             # Images moyennes (quelques difficultés)
+│   ├── complex/            # Images complexes (qualité variable)
+│   └── expected/           # Textes de référence (.txt)
+├── docs/                   # Documentation approfondie
+├── Cargo.toml
+├── README.md
+├── TODO.md                 # Suivi des tâches
+└── CLAUDE.md               # Instructions pour l'agent Claude
 ```
 
 ## Développement
+
+### Compilation
+
+```bash
+# Build en mode debug
+cargo build
+
+# Build en mode release (optimisé)
+cargo build --release
+```
+
+### Tests
+
+```bash
+# Lancer tous les tests
+cargo test
+
+# Tests avec sortie détaillée
+cargo test -- --nocapture
+
+# Tester un module spécifique
+cargo test integration_tests
+```
+
+### Qualité du Code
 
 ```bash
 # Formatage
@@ -59,18 +124,51 @@ cargo fmt
 # Linting
 cargo clippy --all-targets --all-features -- -D warnings
 
-# Build
-cargo build
+# Vérification rapide
+cargo check
+```
 
-# Tests
-cargo test
+### Documentation
+
+```bash
+# Générer et ouvrir la documentation
+cargo doc --open
 ```
 
 ## Progression
 
+- **Phase 1** : Fondations ✅ (12/12 tâches)
+- **Phase 2** : Configuration Complète ✅ (10/10 tâches)
+- **Phase 3** : Prétraitement ✅ (14/14 tâches)
+- **Phase 4** : Métriques ✅ (11/11 tâches)
+- **Phase 5** : Tests ✅ (11/11 tâches)
+- **Phase 6** : Documentation 🔄 (0/10 tâches)
+- **Phase 7** : Extensions (optionnel)
+
+**Total** : 58/67 tâches complétées (86.6%)
+
 Voir [`TODO.md`](TODO.md) pour le suivi détaillé des tâches.
 
-## Docs
+## Philosophie du Projet
 
-- [Guide CLAUDE.md](CLAUDE.md) - Instructions pour l'agent Claude
-- [TODO.md](TODO.md) - Liste des tâches par phase
+Ce projet suit une approche **qualité > quantité** :
+
+- Code clair et lisible
+- Documentation exhaustive
+- Tests complets (153 tests unitaires et d'intégration)
+- Respect des bonnes pratiques Rust
+- Validation systématique (fmt, clippy, build, test)
+
+L'objectif n'est **pas** la performance maximale, mais la **compréhension** du fonctionnement de Tesseract OCR et l'apprentissage de Rust.
+
+## Licence
+
+Ce projet est à usage éducatif.
+
+## Ressources
+
+- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract)
+- [Documentation Tesseract](https://tesseract-ocr.github.io/)
+- [Rust Book](https://doc.rust-lang.org/book/)
+- [leptess (Rust binding)](https://github.com/houqp/leptess)
+- [image-rs](https://github.com/image-rs/image)
