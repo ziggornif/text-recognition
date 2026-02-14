@@ -418,6 +418,316 @@ PSM 13 (Raw line):
 [résultat du mode 13]
 ```
 
+### Utilisation de la bibliothèque
+
+Vous pouvez également utiliser ce projet comme bibliothèque dans vos propres projets Rust.
+
+#### Configuration de Cargo.toml
+
+```toml
+[dependencies]
+text-recognition = { path = "../text-recognition" }
+# Ou si publié sur crates.io :
+# text-recognition = "0.1.0"
+```
+
+#### Exemple 1 : Extraction simple de texte
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig};
+
+fn main() -> anyhow::Result<()> {
+    // Créer une configuration par défaut
+    let config = OcrConfig::default();
+    
+    // Créer le moteur OCR
+    let mut engine = OcrEngine::new(config)?;
+    
+    // Extraire le texte depuis une image
+    let text = engine.extract_text_from_file("image.png")?;
+    
+    println!("Texte extrait :\n{}", text);
+    
+    Ok(())
+}
+```
+
+#### Exemple 2 : Utiliser un preset de configuration
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig};
+
+fn main() -> anyhow::Result<()> {
+    // Utiliser le preset "document"
+    let config = OcrConfig::document_preset();
+    
+    let mut engine = OcrEngine::new(config)?;
+    let text = engine.extract_text_from_file("document.png")?;
+    
+    println!("{}", text);
+    
+    Ok(())
+}
+```
+
+Presets disponibles :
+- `OcrConfig::default()` : Configuration par défaut (PSM 3, langue française)
+- `OcrConfig::document_preset()` : Optimisé pour documents texte
+- `OcrConfig::screenshot_preset()` : Optimisé pour captures d'écran
+- `OcrConfig::single_line_preset()` : Optimisé pour lignes de texte uniques
+- `OcrConfig::photo_preset()` : Optimisé pour photos de documents
+
+#### Exemple 3 : Configuration personnalisée
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig, PageSegMode};
+
+fn main() -> anyhow::Result<()> {
+    // Créer une configuration personnalisée
+    let mut config = OcrConfig::default();
+    config.language = "eng".to_string();
+    config.page_seg_mode = PageSegMode::SingleColumn;
+    config.dpi = 300;
+    
+    let mut engine = OcrEngine::new(config)?;
+    let text = engine.extract_text_from_file("image.png")?;
+    
+    println!("{}", text);
+    
+    Ok(())
+}
+```
+
+#### Exemple 4 : Avec prétraitement d'image
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig, PreprocessingConfig, BinarizationMethod};
+
+fn main() -> anyhow::Result<()> {
+    let config = OcrConfig::default();
+    
+    // Configuration du prétraitement
+    let preprocessing = PreprocessingConfig {
+        grayscale: true,
+        binarize: true,
+        binarization_method: BinarizationMethod::Otsu,
+        denoise: true,
+        contrast_factor: Some(1.5),
+        deskew: false,
+    };
+    
+    // Créer le moteur avec prétraitement
+    let mut engine = OcrEngine::new(config)?
+        .with_preprocessing(preprocessing);
+    
+    let text = engine.extract_text_from_file("noisy_image.png")?;
+    
+    println!("{}", text);
+    
+    Ok(())
+}
+```
+
+#### Exemple 5 : Calculer des métriques de qualité
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig, compare_ocr_result};
+use std::fs;
+
+fn main() -> anyhow::Result<()> {
+    let config = OcrConfig::default();
+    let mut engine = OcrEngine::new(config)?;
+    
+    // Extraire le texte
+    let ocr_text = engine.extract_text_from_file("document.png")?;
+    
+    // Lire le texte de référence
+    let expected_text = fs::read_to_string("expected.txt")?;
+    
+    // Comparer et calculer les métriques
+    let metrics = compare_ocr_result(&ocr_text, &expected_text);
+    
+    println!("CER: {:.2}%", metrics.cer * 100.0);
+    println!("WER: {:.2}%", metrics.wer * 100.0);
+    println!("Précision: {:.2}%", metrics.accuracy() * 100.0);
+    println!("Distance de Levenshtein: {}", metrics.levenshtein_distance);
+    
+    Ok(())
+}
+```
+
+#### Exemple 6 : Générer un rapport détaillé
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig, generate_diff_report};
+use std::fs;
+
+fn main() -> anyhow::Result<()> {
+    let config = OcrConfig::default();
+    let mut engine = OcrEngine::new(config)?;
+    
+    let ocr_text = engine.extract_text_from_file("document.png")?;
+    let expected_text = fs::read_to_string("expected.txt")?;
+    
+    // Générer un rapport complet formaté
+    let report = generate_diff_report(&ocr_text, &expected_text);
+    
+    println!("{}", report);
+    
+    Ok(())
+}
+```
+
+#### Exemple 7 : Tester plusieurs modes PSM
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig, PageSegMode};
+
+fn main() -> anyhow::Result<()> {
+    let psm_modes = vec![
+        PageSegMode::Auto,
+        PageSegMode::SingleBlock,
+        PageSegMode::SingleColumn,
+        PageSegMode::SingleLine,
+    ];
+    
+    for psm in psm_modes {
+        let mut config = OcrConfig::default();
+        config.page_seg_mode = psm;
+        
+        let mut engine = OcrEngine::new(config)?;
+        let text = engine.extract_text_from_file("image.png")?;
+        
+        println!("=== PSM: {:?} ===", psm);
+        println!("{}\n", text);
+    }
+    
+    Ok(())
+}
+```
+
+#### Exemple 8 : Traiter une image depuis la mémoire
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig};
+use image::DynamicImage;
+
+fn main() -> anyhow::Result<()> {
+    let config = OcrConfig::default();
+    let mut engine = OcrEngine::new(config)?;
+    
+    // Charger une image depuis n'importe quelle source
+    let img = image::open("image.png")?;
+    
+    // Ou créer/modifier une image programmatiquement
+    let processed_img = process_image(img);
+    
+    // Extraire le texte depuis DynamicImage
+    let text = engine.extract_text_from_image(&processed_img)?;
+    
+    println!("{}", text);
+    
+    Ok(())
+}
+
+fn process_image(img: DynamicImage) -> DynamicImage {
+    // Appliquer des transformations personnalisées
+    img.grayscale()
+}
+```
+
+#### Exemple 9 : Utilisation avec variables Tesseract personnalisées
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig};
+use std::collections::HashMap;
+
+fn main() -> anyhow::Result<()> {
+    let mut config = OcrConfig::default();
+    
+    // Ajouter des variables Tesseract personnalisées
+    let mut vars = HashMap::new();
+    vars.insert("tessedit_char_whitelist".to_string(), 
+                "0123456789ABCDEF".to_string());
+    
+    config.tesseract_variables = vars;
+    
+    let mut engine = OcrEngine::new(config)?;
+    let text = engine.extract_text_from_file("hex_code.png")?;
+    
+    println!("{}", text);
+    
+    Ok(())
+}
+```
+
+#### Exemple 10 : Comparer différents prétraitements
+
+```rust
+use text_recognition::{
+    OcrEngine, OcrConfig, PreprocessingConfig, 
+    BinarizationMethod, compare_ocr_result
+};
+use std::fs;
+
+fn main() -> anyhow::Result<()> {
+    let expected = fs::read_to_string("expected.txt")?;
+    
+    // Test sans prétraitement
+    let config1 = OcrConfig::default();
+    let mut engine1 = OcrEngine::new(config1)?;
+    let text1 = engine1.extract_text_from_file("image.png")?;
+    let metrics1 = compare_ocr_result(&text1, &expected);
+    
+    // Test avec binarisation Otsu
+    let config2 = OcrConfig::default();
+    let preprocessing2 = PreprocessingConfig {
+        grayscale: true,
+        binarize: true,
+        binarization_method: BinarizationMethod::Otsu,
+        denoise: false,
+        contrast_factor: None,
+        deskew: false,
+    };
+    let mut engine2 = OcrEngine::new(config2)?
+        .with_preprocessing(preprocessing2);
+    let text2 = engine2.extract_text_from_file("image.png")?;
+    let metrics2 = compare_ocr_result(&text2, &expected);
+    
+    // Test avec binarisation adaptative
+    let config3 = OcrConfig::default();
+    let preprocessing3 = PreprocessingConfig {
+        grayscale: true,
+        binarize: true,
+        binarization_method: BinarizationMethod::Adaptive,
+        denoise: true,
+        contrast_factor: Some(1.3),
+        deskew: false,
+    };
+    let mut engine3 = OcrEngine::new(config3)?
+        .with_preprocessing(preprocessing3);
+    let text3 = engine3.extract_text_from_file("image.png")?;
+    let metrics3 = compare_ocr_result(&text3, &expected);
+    
+    println!("Sans prétraitement: CER={:.2}%, WER={:.2}%", 
+             metrics1.cer * 100.0, metrics1.wer * 100.0);
+    println!("Avec Otsu:          CER={:.2}%, WER={:.2}%", 
+             metrics2.cer * 100.0, metrics2.wer * 100.0);
+    println!("Avec Adaptive:      CER={:.2}%, WER={:.2}%", 
+             metrics3.cer * 100.0, metrics3.wer * 100.0);
+    
+    Ok(())
+}
+```
+
+#### Documentation complète
+
+Pour plus de détails sur l'API, consultez la documentation générée :
+
+```bash
+cargo doc --open
+```
+
 ## Développement
 
 ### Compilation
@@ -470,10 +780,10 @@ cargo doc --open
 - **Phase 3** : Prétraitement ✅ (14/14 tâches)
 - **Phase 4** : Métriques ✅ (11/11 tâches)
 - **Phase 5** : Tests ✅ (11/11 tâches)
-- **Phase 6** : Documentation 🔄 (2/10 tâches)
+- **Phase 6** : Documentation 🔄 (3/10 tâches)
 - **Phase 7** : Extensions (optionnel)
 
-**Total** : 60/67 tâches complétées (89.6%)
+**Total** : 61/67 tâches complétées (91.0%)
 
 Voir [`TODO.md`](TODO.md) pour le suivi détaillé des tâches.
 
