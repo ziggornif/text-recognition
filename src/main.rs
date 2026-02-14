@@ -128,6 +128,22 @@ struct Args {
     /// Exemple: --expected expected.txt --metrics
     #[arg(short = 'm', long, requires = "expected")]
     metrics: bool,
+
+    /// Tester tous les modes PSM (0-13) et afficher les résultats
+    ///
+    /// Cette option teste tous les 14 modes de segmentation de page disponibles
+    /// et affiche le texte extrait pour chacun. Si --expected est fourni,
+    /// affiche également les métriques de qualité pour chaque mode.
+    ///
+    /// Utile pour déterminer quel mode PSM donne les meilleurs résultats
+    /// pour un type d'image spécifique.
+    ///
+    /// Note: Cette option ignore l'option --psm.
+    ///
+    /// Exemple: --test-all-psm
+    /// Exemple avec métriques: --test-all-psm --expected expected.txt
+    #[arg(long, conflicts_with = "psm")]
+    test_all_psm: bool,
 }
 
 /// Convertit un code PSM numérique en PageSegMode.
@@ -178,9 +194,164 @@ fn parse_binarization_method(method: &str) -> Result<BinarizationMethod> {
     }
 }
 
+/// Teste tous les modes PSM (0-13) sur une image et affiche les résultats.
+///
+/// Cette fonction itère sur tous les modes de segmentation de page disponibles,
+/// extrait le texte avec chaque mode, et affiche les résultats.
+///
+/// Si un fichier de référence est fourni (--expected), affiche également
+/// les métriques de qualité (CER, WER) pour chaque mode.
+fn test_all_psm_modes(args: &Args) -> Result<()> {
+    println!("═══════════════════════════════════════════════════════════");
+    println!("         TEST DE TOUS LES MODES PSM (0-13)");
+    println!("═══════════════════════════════════════════════════════════");
+    println!();
+    println!("Image: {}", args.image.display());
+    println!("Langue: {}", args.language);
+    println!("DPI: {}", args.dpi);
+    println!();
+
+    // Charger le texte de référence si fourni
+    let expected_text = if let Some(expected_path) = &args.expected {
+        let text = fs::read_to_string(expected_path).map_err(|e| {
+            anyhow::anyhow!(
+                "Impossible de lire le fichier de référence '{}': {}",
+                expected_path.display(),
+                e
+            )
+        })?;
+        println!("Texte de référence chargé: {} caractères", text.len());
+        println!();
+        Some(text)
+    } else {
+        None
+    };
+
+    // Liste de tous les modes PSM avec leurs noms
+    let all_psm_modes = [
+        (0, "OSD Only", PageSegMode::OsdOnly),
+        (1, "Auto with OSD", PageSegMode::AutoOsd),
+        (2, "Auto without OSD", PageSegMode::AutoOnly),
+        (3, "Auto (default)", PageSegMode::Auto),
+        (4, "Single column", PageSegMode::SingleColumn),
+        (5, "Single vertical block", PageSegMode::SingleBlockVertText),
+        (6, "Single block", PageSegMode::SingleBlock),
+        (7, "Single line", PageSegMode::SingleLine),
+        (8, "Single word", PageSegMode::SingleWord),
+        (9, "Circle word", PageSegMode::CircleWord),
+        (10, "Single char", PageSegMode::SingleChar),
+        (11, "Sparse text", PageSegMode::SparseText),
+        (12, "Sparse text with OSD", PageSegMode::SparseTextOsd),
+        (13, "Raw line", PageSegMode::RawLine),
+    ];
+
+    // Construire la configuration de prétraitement si nécessaire
+    let preprocess_config = if args.preprocess {
+        let binarization_method = parse_binarization_method(&args.binarize_method)?;
+        Some(PreprocessingConfig {
+            to_grayscale: args.grayscale,
+            binarize: args.binarize,
+            binarization_method,
+            adjust_contrast: args.contrast.is_some(),
+            contrast_factor: args.contrast.unwrap_or(1.0),
+            denoise: args.denoise,
+            deskew: args.deskew,
+        })
+    } else {
+        None
+    };
+
+    // Tester chaque mode PSM
+    for (psm_num, psm_name, psm_mode) in &all_psm_modes {
+        println!("───────────────────────────────────────────────────────────");
+        println!("PSM {} - {}", psm_num, psm_name);
+        println!("───────────────────────────────────────────────────────────");
+
+        // Créer la configuration avec le PSM actuel
+        let config = OcrConfig {
+            language: args.language.clone(),
+            page_seg_mode: *psm_mode,
+            dpi: args.dpi,
+            tesseract_variables: HashMap::new(),
+        };
+
+        // Créer le moteur OCR
+        let engine = if let Some(ref prep_config) = preprocess_config {
+            OcrEngine::with_preprocessing(config, prep_config.clone())?
+        } else {
+            OcrEngine::new(config)?
+        };
+
+        // Extraire le texte
+        match engine.extract_text_from_file(&args.image) {
+            Ok(text) => {
+                // Afficher le texte extrait
+                let trimmed_text = text.trim();
+
+                if trimmed_text.is_empty() {
+                    println!("⚠ Aucun texte extrait");
+                } else {
+                    // Limiter l'affichage pour ne pas surcharger le terminal
+                    let preview = if trimmed_text.len() > 200 {
+                        format!(
+                            "{}... ({} caractères)",
+                            &trimmed_text[..200],
+                            trimmed_text.len()
+                        )
+                    } else {
+                        trimmed_text.to_string()
+                    };
+                    println!("Texte extrait:");
+                    println!("{}", preview);
+                }
+
+                // Si un texte de référence est fourni, calculer les métriques
+                if let Some(ref expected) = expected_text {
+                    let metrics = compare_ocr_result(&text, expected);
+                    println!();
+                    println!("Métriques:");
+                    println!("  CER:       {:.2}%", metrics.cer * 100.0);
+                    println!("  WER:       {:.2}%", metrics.wer * 100.0);
+                    println!("  Précision: {:.2}%", metrics.accuracy() * 100.0);
+
+                    // Indicateur visuel de qualité
+                    let quality = if metrics.cer < 0.05 {
+                        "★★★★★ Excellent"
+                    } else if metrics.cer < 0.15 {
+                        "★★★★☆ Bon"
+                    } else if metrics.cer < 0.30 {
+                        "★★★☆☆ Moyen"
+                    } else if metrics.cer < 0.50 {
+                        "★★☆☆☆ Faible"
+                    } else {
+                        "★☆☆☆☆ Très faible"
+                    };
+                    println!("  Qualité:   {}", quality);
+                }
+            }
+            Err(e) => {
+                println!("✗ Erreur lors de l'extraction: {}", e);
+            }
+        }
+
+        println!();
+    }
+
+    println!("═══════════════════════════════════════════════════════════");
+    println!("Test terminé. {} modes testés.", all_psm_modes.len());
+    println!("═══════════════════════════════════════════════════════════");
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     // Parser les arguments de la ligne de commande
     let args = Args::parse();
+
+    // Mode spécial: tester tous les PSM
+    if args.test_all_psm {
+        return test_all_psm_modes(&args);
+    }
 
     // Créer la configuration OCR
     let config = OcrConfig {
