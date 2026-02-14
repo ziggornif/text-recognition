@@ -95,7 +95,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **6.2** - Ajouter section Installation dans README
 - [x] **6.3** - Ajouter exemples d'utilisation CLI dans README
 - [x] **6.4** - Ajouter exemples d'utilisation lib dans README
-- [ ] **6.5** - Créer `docs/parametrage-tesseract.md` avec guide des PSM
+- [x] **6.5** - Créer `docs/parametrage-tesseract.md` avec guide des PSM
 - [ ] **6.6** - Ajouter section variables Tesseract dans la doc
 - [ ] **6.7** - Ajouter section prétraitement dans la doc
 - [ ] **6.8** - Ajouter tableaux de résultats dans la doc
@@ -120,9 +120,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 62
-- **Tâches restantes** : 5
-- **Progression** : 92.5%
+- **Tâches complétées** : 63
+- **Tâches restantes** : 4
+- **Progression** : 94.0%
 
 ---
 
