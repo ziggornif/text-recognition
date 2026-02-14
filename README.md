@@ -214,6 +214,210 @@ text-recognition/
 └── CLAUDE.md               # Instructions pour l'agent Claude
 ```
 
+## Utilisation
+
+### Utilisation de base
+
+L'utilisation la plus simple consiste à extraire le texte d'une image :
+
+```bash
+# Extraire le texte d'une image
+cargo run -- resources/simple/img-1.png
+
+# Ou avec le binaire installé
+text-recognition resources/simple/img-1.png
+```
+
+### Afficher l'aide
+
+```bash
+cargo run -- --help
+```
+
+### Exemples d'utilisation CLI
+
+#### 1. Extraction simple
+
+```bash
+# Extraction avec les paramètres par défaut (langue: français, PSM: 3)
+cargo run -- resources/simple/img-1.png
+```
+
+#### 2. Changer la langue
+
+```bash
+# Utiliser l'anglais
+cargo run -- resources/simple/img-1.png --language eng
+
+# Combiner plusieurs langues
+cargo run -- resources/simple/img-1.png --language eng+fra
+```
+
+#### 3. Tester différents modes PSM
+
+```bash
+# Mode ligne unique (PSM 7)
+cargo run -- resources/simple/img-1.png --psm 7
+
+# Mode colonne unique (PSM 4)
+cargo run -- resources/simple/img-1.png --psm 4
+
+# Mode texte épars (PSM 11)
+cargo run -- resources/simple/img-1.png --psm 11
+```
+
+#### 4. Appliquer du prétraitement
+
+```bash
+# Prétraitement complet (grayscale + binarization + denoise)
+cargo run -- resources/medium/img-2.png --preprocess
+
+# Prétraitement personnalisé
+cargo run -- resources/medium/img-2.png --grayscale --binarize --denoise
+
+# Binarisation avec méthode spécifique
+cargo run -- resources/medium/img-2.png --grayscale --binarize --binarize-method otsu
+
+# Binarisation avec seuil fixe
+cargo run -- resources/medium/img-2.png --grayscale --binarize --binarize-method fixed:128
+
+# Ajuster le contraste (1.5x)
+cargo run -- resources/medium/img-2.png --contrast 1.5
+```
+
+#### 5. Mesurer la qualité avec des métriques
+
+```bash
+# Comparer avec un texte de référence
+cargo run -- resources/simple/img-1.png --expected resources/expected/img-1.txt
+
+# Afficher un rapport détaillé
+cargo run -- resources/simple/img-1.png --expected resources/expected/img-1.txt --metrics
+```
+
+Le rapport affichera :
+- **CER** (Character Error Rate) : Taux d'erreur au niveau caractère
+- **WER** (Word Error Rate) : Taux d'erreur au niveau mot
+- **Précision** : Pourcentage de caractères corrects
+- **Distance de Levenshtein** : Nombre d'opérations d'édition nécessaires
+
+#### 6. Tester tous les modes PSM
+
+```bash
+# Tester les 14 modes PSM sur une image
+cargo run -- resources/simple/img-1.png --test-all-psm
+
+# Tester tous les modes PSM avec métriques
+cargo run -- resources/simple/img-1.png --test-all-psm --expected resources/expected/img-1.txt
+```
+
+Cette option est très utile pour déterminer quel mode PSM donne les meilleurs résultats pour un type d'image spécifique.
+
+#### 7. Combiner plusieurs options
+
+```bash
+# Prétraitement + langue spécifique + métriques
+cargo run -- resources/medium/img-2.png \
+  --language fra \
+  --psm 3 \
+  --preprocess \
+  --expected resources/expected/img-2.txt \
+  --metrics
+
+# Test complet avec tous les paramètres
+cargo run -- resources/complex/img-7.png \
+  --language fra \
+  --psm 6 \
+  --grayscale \
+  --binarize \
+  --binarize-method adaptive \
+  --denoise \
+  --contrast 1.3 \
+  --expected resources/expected/img-7.txt \
+  --metrics
+```
+
+#### 8. Exemples par type d'image
+
+##### Document texte classique
+```bash
+cargo run -- mon_document.png --psm 3 --language fra
+```
+
+##### Screenshot d'interface
+```bash
+cargo run -- screenshot.png --psm 11 --preprocess
+```
+
+##### Photo de document
+```bash
+cargo run -- photo_doc.jpg \
+  --psm 3 \
+  --grayscale \
+  --binarize \
+  --binarize-method adaptive \
+  --contrast 1.5
+```
+
+##### Ligne de texte unique
+```bash
+cargo run -- ligne_texte.png --psm 7
+```
+
+##### Mot isolé
+```bash
+cargo run -- mot.png --psm 8
+```
+
+### Exemples de sortie
+
+#### Extraction simple
+```
+2 ABREVIATIONS ET SYMBOLES
+
+Dans le but de faciliter la compréhension de la notice...
+```
+
+#### Avec métriques
+```
+═══════════════════════════════════════════════════════════
+                   OCR COMPARISON REPORT
+═══════════════════════════════════════════════════════════
+
+METRICS:
+--------
+Character Error Rate (CER): 0.10%
+Word Error Rate (WER):      0.14%
+Levenshtein Distance:       1
+Accuracy:                   99.90%
+
+STATISTICS:
+-----------
+Reference: 719 characters, 118 words
+OCR:       719 characters, 118 words
+
+SUMMARY:
+--------
+Quality: Excellent (< 2% error)
+Match:   Not exact
+```
+
+#### Test de tous les modes PSM
+```
+Testing all PSM modes on: resources/simple/img-1.png
+
+PSM 0 (OSD Only):
+[résultat du mode 0]
+
+PSM 1 (Auto with OSD):
+[résultat du mode 1]
+
+...
+
+PSM 13 (Raw line):
+[résultat du mode 13]
+```
+
 ## Développement
 
 ### Compilation
@@ -266,10 +470,10 @@ cargo doc --open
 - **Phase 3** : Prétraitement ✅ (14/14 tâches)
 - **Phase 4** : Métriques ✅ (11/11 tâches)
 - **Phase 5** : Tests ✅ (11/11 tâches)
-- **Phase 6** : Documentation 🔄 (1/10 tâches)
+- **Phase 6** : Documentation 🔄 (2/10 tâches)
 - **Phase 7** : Extensions (optionnel)
 
-**Total** : 59/67 tâches complétées (88.1%)
+**Total** : 60/67 tâches complétées (89.6%)
 
 Voir [`TODO.md`](TODO.md) pour le suivi détaillé des tâches.
 
