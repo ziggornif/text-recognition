@@ -76,13 +76,13 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Phase 5 : Tests
 
 - [x] **5.1** - Créer structure `resources/` avec sous-dossiers (simple/medium/complex/expected)
-- [ ] **5.2** - Organiser les images existantes dans `resources/simple/` (3 images)
-- [ ] **5.3** - Organiser les images existantes dans `resources/medium/` (3 images)
-- [ ] **5.4** - Organiser les images existantes dans `resources/complex/` (2 images)
-- [ ] **5.5** - Créer fichiers `.txt` correspondants dans `resources/expected/`
-- [ ] **5.6** - Créer `tests/integration_tests.rs` avec tests basiques
-- [ ] **5.7** - Créer `tests/psm_tests.rs` avec tests de tous les modes PSM
-- [ ] **5.8** - Créer `tests/preprocessing_tests.rs` avec tests de prétraitement
+- [x] **5.2** - Organiser les images existantes dans `resources/simple/` (3 images)
+- [x] **5.3** - Organiser les images existantes dans `resources/medium/` (3 images)
+- [x] **5.4** - Organiser les images existantes dans `resources/complex/` (2 images)
+- [x] **5.5** - Créer fichiers `.txt` correspondants dans `resources/expected/`
+- [x] **5.6** - Créer `tests/integration_tests.rs` avec tests basiques
+- [x] **5.7** - Créer `tests/psm_tests.rs` avec tests de tous les modes PSM
+- [x] **5.8** - Créer `tests/preprocessing_tests.rs` avec tests de prétraitement
 - [ ] **5.9** - Créer `tests/metrics_tests.rs` avec tests de métriques
 - [ ] **5.10** - Ajouter option CLI `--test-all-psm`
 - [ ] **5.11** - Corriger les bugs identifiés par les tests
@@ -120,9 +120,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Statistiques
 
 - **Total tâches Phase 1-6** : 67 tâches
-- **Tâches complétées** : 48
-- **Tâches restantes** : 19
-- **Progression** : 71.6%
+- **Tâches complétées** : 55
+- **Tâches restantes** : 12
+- **Progression** : 82.1%
 
 ---
 
