@@ -100,7 +100,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **6.7** - Ajouter section prétraitement dans la doc
 - [x] **6.8** - Ajouter tableaux de résultats dans la doc
 - [x] **6.9** - Documenter le code avec rustdoc (commentaires ///)
-- [ ] **6.10** - Générer et vérifier la documentation (`cargo doc --open`)
+- [x] **6.10** - Générer et vérifier la documentation (`cargo doc --open`)
 
 ---
 
