@@ -8,6 +8,7 @@ Ce document fournit un guide complet sur les différents paramètres de Tesserac
 - [Modes de Segmentation de Page (PSM)](#modes-de-segmentation-de-page-psm)
 - [Guide de sélection du PSM](#guide-de-sélection-du-psm)
 - [Langues](#langues)
+- [Variables Tesseract](#variables-tesseract)
 - [Résolution (DPI)](#résolution-dpi)
 - [Bonnes pratiques](#bonnes-pratiques)
 
@@ -507,6 +508,418 @@ brew install tesseract-lang
 ```bash
 tesseract --list-langs
 ```
+
+---
+
+## Variables Tesseract
+
+Tesseract permet de configurer son comportement via des **variables internes**. Ces variables offrent un contrôle fin sur le processus de reconnaissance et peuvent améliorer significativement les résultats dans certains cas.
+
+### Qu'est-ce qu'une variable Tesseract ?
+
+Les variables Tesseract (aussi appelées **config vars** ou **parameters**) sont des paramètres internes du moteur OCR qui contrôlent :
+- Le traitement des images
+- Les seuils de détection
+- Les règles linguistiques
+- Le formatage de la sortie
+- Les optimisations de performance
+
+### Comment utiliser les variables ?
+
+Dans ce projet, les variables peuvent être configurées via la structure `OcrConfig` :
+
+```rust
+use std::collections::HashMap;
+use text_recognition::{OcrConfig, OcrEngine, PageSegMode};
+
+let mut config = OcrConfig::default();
+
+// Créer un HashMap de variables Tesseract
+let mut variables = HashMap::new();
+variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
+
+config.tesseract_variables = variables;
+
+let mut engine = OcrEngine::new(config)?;
+let text = engine.extract_text_from_file("image.png")?;
+```
+
+### Variables Essentielles
+
+Voici les variables les plus utiles, organisées par catégorie.
+
+---
+
+#### 1. Filtrage de Caractères
+
+##### `tessedit_char_whitelist`
+
+**Description** : Liste blanche de caractères autorisés. Seuls ces caractères seront reconnus.
+
+**Usage** : Restreindre la reconnaissance à un ensemble spécifique de caractères.
+
+**Exemples** :
+
+```rust
+// Chiffres uniquement
+variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
+
+// Lettres majuscules uniquement
+variables.insert("tessedit_char_whitelist".to_string(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string());
+
+// Hexadécimal
+variables.insert("tessedit_char_whitelist".to_string(), "0123456789ABCDEFabcdef".to_string());
+
+// Code-barres numérique
+variables.insert("tessedit_char_whitelist".to_string(), "0123456789-".to_string());
+```
+
+**Cas d'usage** :
+- Codes postaux (chiffres uniquement)
+- Plaques d'immatriculation (lettres + chiffres)
+- Codes hexadécimaux
+- Formulaires numériques
+
+---
+
+##### `tessedit_char_blacklist`
+
+**Description** : Liste noire de caractères interdits. Ces caractères ne seront jamais reconnus.
+
+**Usage** : Exclure des caractères connus pour être absents du texte.
+
+**Exemples** :
+
+```rust
+// Exclure ponctuation spécifique
+variables.insert("tessedit_char_blacklist".to_string(), "!@#$%^&*()".to_string());
+
+// Exclure chiffres
+variables.insert("tessedit_char_blacklist".to_string(), "0123456789".to_string());
+
+// Exclure caractères ambigus (1/l, 0/O)
+variables.insert("tessedit_char_blacklist".to_string(), "1l0O".to_string());
+```
+
+**Cas d'usage** :
+- Texte littéraire (pas de chiffres)
+- Éviter confusion entre caractères similaires
+- Documents avec contraintes linguistiques
+
+---
+
+#### 2. Post-traitement Linguistique
+
+##### `tessedit_pageseg_mode`
+
+**Description** : Définit le mode de segmentation de page (équivalent au PSM).
+
+**Usage** : Alternative à la configuration via l'enum `PageSegMode`.
+
+**Exemples** :
+
+```rust
+// PSM 7 (Single Line)
+variables.insert("tessedit_pageseg_mode".to_string(), "7".to_string());
+
+// PSM 11 (Sparse Text)
+variables.insert("tessedit_pageseg_mode".to_string(), "11".to_string());
+```
+
+**Note** : Il est préférable d'utiliser le champ `page_seg_mode` de `OcrConfig` plutôt que cette variable.
+
+---
+
+##### `load_system_dawg`
+##### `load_freq_dawg`
+##### `load_number_dawg`
+##### `load_punc_dawg`
+##### `load_bigram_dawg`
+
+**Description** : Active/désactive le chargement de dictionnaires linguistiques (DAWG = Directed Acyclic Word Graph).
+
+- `load_system_dawg` : Dictionnaire système (mots courants)
+- `load_freq_dawg` : Mots fréquents
+- `load_number_dawg` : Nombres
+- `load_punc_dawg` : Ponctuation
+- `load_bigram_dawg` : Bigrammes (paires de mots)
+
+**Valeurs** : `"T"` (activé) ou `"F"` (désactivé)
+
+**Usage** : Désactiver les dictionnaires pour du texte technique, codes, ou formules.
+
+**Exemples** :
+
+```rust
+// Désactiver tous les dictionnaires pour du code source
+variables.insert("load_system_dawg".to_string(), "F".to_string());
+variables.insert("load_freq_dawg".to_string(), "F".to_string());
+variables.insert("load_number_dawg".to_string(), "F".to_string());
+variables.insert("load_punc_dawg".to_string(), "F".to_string());
+variables.insert("load_bigram_dawg".to_string(), "F".to_string());
+
+// Activer uniquement nombres et ponctuation pour des données structurées
+variables.insert("load_system_dawg".to_string(), "F".to_string());
+variables.insert("load_freq_dawg".to_string(), "F".to_string());
+variables.insert("load_number_dawg".to_string(), "T".to_string());
+variables.insert("load_punc_dawg".to_string(), "T".to_string());
+variables.insert("load_bigram_dawg".to_string(), "F".to_string());
+```
+
+**Cas d'usage** :
+- Code source (désactiver tous les dictionnaires)
+- Codes techniques (hexadécimal, base64)
+- Formules mathématiques
+- Données structurées (CSV, JSON)
+
+---
+
+#### 3. Détection et Traitement
+
+##### `textord_min_linesize`
+
+**Description** : Taille minimale de ligne détectée (en pixels).
+
+**Valeur par défaut** : `0.5`
+
+**Usage** : Ajuster la détection de lignes pour du texte très petit ou très grand.
+
+**Exemples** :
+
+```rust
+// Texte très petit
+variables.insert("textord_min_linesize".to_string(), "0.3".to_string());
+
+// Texte très grand
+variables.insert("textord_min_linesize".to_string(), "1.5".to_string());
+```
+
+---
+
+##### `preserve_interword_spaces`
+
+**Description** : Préserve les espaces multiples entre les mots.
+
+**Valeurs** : `"0"` (non) ou `"1"` (oui)
+
+**Valeur par défaut** : `"0"`
+
+**Usage** : Utile pour les documents avec espacement significatif (tableaux, code).
+
+**Exemples** :
+
+```rust
+// Préserver espaces multiples
+variables.insert("preserve_interword_spaces".to_string(), "1".to_string());
+```
+
+**Cas d'usage** :
+- Code source indenté
+- Tableaux alignés avec espaces
+- Documents avec mise en page spécifique
+
+---
+
+##### `textord_noise_sizelimit`
+
+**Description** : Taille maximale (en pixels) pour considérer un élément comme du bruit.
+
+**Valeur par défaut** : `7.0`
+
+**Usage** : Ajuster le filtrage du bruit.
+
+**Exemples** :
+
+```rust
+// Filtrer davantage de bruit (images de mauvaise qualité)
+variables.insert("textord_noise_sizelimit".to_string(), "10.0".to_string());
+
+// Conserver les petits éléments (petits caractères)
+variables.insert("textord_noise_sizelimit".to_string(), "3.0".to_string());
+```
+
+---
+
+#### 4. Seuils de Confiance
+
+##### `tessedit_char_blacklist`
+
+**Description** : (déjà décrite ci-dessus)
+
+---
+
+##### `classify_bln_numeric_mode`
+
+**Description** : Active le mode numérique pour améliorer la reconnaissance des chiffres.
+
+**Valeurs** : `"0"` (non) ou `"1"` (oui)
+
+**Valeur par défaut** : `"0"`
+
+**Usage** : Améliorer la reconnaissance des chiffres (codes postaux, numéros).
+
+**Exemples** :
+
+```rust
+// Activer mode numérique
+variables.insert("classify_bln_numeric_mode".to_string(), "1".to_string());
+```
+
+---
+
+#### 5. Sortie et Formatage
+
+##### `hocr_font_info`
+
+**Description** : Inclure les informations de police dans la sortie HOCR.
+
+**Valeurs** : `"0"` (non) ou `"1"` (oui)
+
+**Usage** : Extraction de métadonnées de police.
+
+**Exemples** :
+
+```rust
+variables.insert("hocr_font_info".to_string(), "1".to_string());
+```
+
+---
+
+### Cas d'Usage Pratiques
+
+#### Exemple 1 : Reconnaissance de Code Postal
+
+```rust
+use std::collections::HashMap;
+use text_recognition::{OcrConfig, OcrEngine, PageSegMode};
+
+let mut config = OcrConfig {
+    page_seg_mode: PageSegMode::SingleLine,
+    language: "eng".to_string(),
+    ..Default::default()
+};
+
+let mut variables = HashMap::new();
+variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
+variables.insert("classify_bln_numeric_mode".to_string(), "1".to_string());
+
+config.tesseract_variables = variables;
+
+let mut engine = OcrEngine::new(config)?;
+let code_postal = engine.extract_text_from_file("code_postal.png")?;
+```
+
+---
+
+#### Exemple 2 : Reconnaissance de Code Source
+
+```rust
+use std::collections::HashMap;
+use text_recognition::{OcrConfig, OcrEngine, PageSegMode};
+
+let mut config = OcrConfig {
+    page_seg_mode: PageSegMode::Auto,
+    language: "eng".to_string(),
+    ..Default::default()
+};
+
+let mut variables = HashMap::new();
+
+// Désactiver tous les dictionnaires
+variables.insert("load_system_dawg".to_string(), "F".to_string());
+variables.insert("load_freq_dawg".to_string(), "F".to_string());
+variables.insert("load_number_dawg".to_string(), "F".to_string());
+variables.insert("load_punc_dawg".to_string(), "F".to_string());
+variables.insert("load_bigram_dawg".to_string(), "F".to_string());
+
+// Préserver espaces multiples
+variables.insert("preserve_interword_spaces".to_string(), "1".to_string());
+
+config.tesseract_variables = variables;
+
+let mut engine = OcrEngine::new(config)?;
+let code = engine.extract_text_from_file("code_source.png")?;
+```
+
+---
+
+#### Exemple 3 : Plaque d'Immatriculation
+
+```rust
+use std::collections::HashMap;
+use text_recognition::{OcrConfig, OcrEngine, PageSegMode};
+
+let mut config = OcrConfig {
+    page_seg_mode: PageSegMode::SingleLine,
+    language: "eng".to_string(),
+    ..Default::default()
+};
+
+let mut variables = HashMap::new();
+variables.insert("tessedit_char_whitelist".to_string(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-".to_string());
+
+config.tesseract_variables = variables;
+
+let mut engine = OcrEngine::new(config)?;
+let plaque = engine.extract_text_from_file("plaque.png")?;
+```
+
+---
+
+### Liste des Variables Principales
+
+Voici un tableau récapitulatif des variables les plus utiles :
+
+| Variable | Type | Description | Cas d'usage |
+|----------|------|-------------|-------------|
+| `tessedit_char_whitelist` | String | Caractères autorisés | Codes, formulaires numériques |
+| `tessedit_char_blacklist` | String | Caractères interdits | Éviter confusion, contraintes |
+| `load_system_dawg` | T/F | Dictionnaire système | Désactiver pour code technique |
+| `load_freq_dawg` | T/F | Mots fréquents | Désactiver pour code technique |
+| `load_number_dawg` | T/F | Nombres | Désactiver pour texte pur |
+| `load_punc_dawg` | T/F | Ponctuation | Désactiver pour codes |
+| `load_bigram_dawg` | T/F | Bigrammes | Désactiver pour code technique |
+| `preserve_interword_spaces` | 0/1 | Préserver espaces multiples | Code source, tableaux |
+| `textord_min_linesize` | Float | Taille min de ligne (pixels) | Texte très petit/grand |
+| `textord_noise_sizelimit` | Float | Seuil de filtrage du bruit | Images de mauvaise qualité |
+| `classify_bln_numeric_mode` | 0/1 | Mode numérique | Chiffres, codes postaux |
+| `hocr_font_info` | 0/1 | Infos police en HOCR | Extraction métadonnées |
+
+---
+
+### Lister Toutes les Variables Disponibles
+
+Pour voir toutes les variables disponibles dans votre installation de Tesseract :
+
+```bash
+tesseract --print-parameters
+```
+
+Cela affichera une liste complète avec les valeurs par défaut.
+
+---
+
+### Bonnes Pratiques pour les Variables
+
+1. **Commencer simple** : N'ajoutez des variables que si le comportement par défaut ne convient pas.
+
+2. **Tester l'impact** : Chaque variable peut affecter les résultats. Testez avec et sans pour mesurer l'impact.
+
+3. **Documenter vos configurations** : Gardez une trace des variables utilisées et de leurs effets.
+
+4. **Combiner avec PSM** : Les variables fonctionnent mieux quand le bon PSM est déjà sélectionné.
+
+5. **Whitelist vs Blacklist** : Ne jamais utiliser les deux en même temps (résultats imprévisibles).
+
+6. **Performance** : Désactiver les dictionnaires (`load_*_dawg`) peut améliorer la vitesse pour du texte technique.
+
+---
+
+### Ressources sur les Variables
+
+- [Liste complète des variables Tesseract](https://tesseract-ocr.github.io/tessdoc/tess3/ControlParams.html)
+- [Configuration avancée](https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html)
+- [Commande `--print-parameters`](https://tesseract-ocr.github.io/tessdoc/)
 
 ---
 
