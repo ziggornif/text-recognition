@@ -10,6 +10,7 @@ Ce document fournit un guide complet sur les différents paramètres de Tesserac
 - [Langues](#langues)
 - [Variables Tesseract](#variables-tesseract)
 - [Résolution (DPI)](#résolution-dpi)
+- [Prétraitement d'Images](#prétraitement-dimages)
 - [Bonnes pratiques](#bonnes-pratiques)
 
 ---
@@ -943,6 +944,669 @@ cargo run -- image.png --dpi 300
 ```
 
 **Note** : Si l'image ne contient pas de métadonnées DPI, Tesseract utilisera la valeur fournie.
+
+---
+
+## Prétraitement d'Images
+
+Le **prétraitement** est une étape cruciale pour améliorer la qualité de l'OCR, en particulier pour les images de mauvaise qualité (photos de documents, captures d'écran, scans anciens, etc.). Le prétraitement transforme l'image brute en une version optimisée pour Tesseract.
+
+### Pourquoi prétraiter ?
+
+Tesseract fonctionne mieux avec des images :
+- **Nettes** : Pas de flou
+- **Contrastées** : Texte noir sur fond blanc
+- **Binaires** : Deux couleurs (noir et blanc)
+- **Propres** : Sans bruit, artéfacts ou distorsions
+- **Droites** : Sans rotation ou inclinaison
+
+Le prétraitement corrige ces problèmes avant l'OCR.
+
+### Pipeline de Prétraitement
+
+Ce projet propose un **pipeline de prétraitement** configurable avec 5 opérations principales, appliquées dans cet ordre :
+
+```
+Image brute
+    ↓
+1. Conversion en niveaux de gris (Grayscale)
+    ↓
+2. Ajustement du contraste
+    ↓
+3. Débruitage (Denoise)
+    ↓
+4. Binarisation
+    ↓
+5. Redressement (Deskew)
+    ↓
+Image prétraitée → Tesseract OCR
+```
+
+---
+
+### 1. Conversion en Niveaux de Gris (Grayscale)
+
+**Objectif** : Convertir une image couleur (RGB) en niveaux de gris.
+
+**Pourquoi** :
+- Réduit la complexité (3 canaux → 1 canal)
+- Améliore la performance
+- Prépare pour la binarisation
+
+**Algorithme** : Moyenne pondérée des canaux RGB selon la perception humaine :
+```
+Gris = 0.299 × R + 0.587 × G + 0.114 × B
+```
+
+**Quand l'utiliser** :
+- Toujours comme première étape si l'image est en couleur
+- Sauf si l'image est déjà en niveaux de gris
+
+**CLI** :
+```bash
+cargo run -- image.png --grayscale
+```
+
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::{to_grayscale, PreprocessingConfig};
+use image::open;
+
+let img = open("image.png")?;
+let gray = to_grayscale(&img);
+```
+
+---
+
+### 2. Ajustement du Contraste
+
+**Objectif** : Augmenter ou diminuer le contraste de l'image.
+
+**Pourquoi** :
+- Images trop sombres ou trop claires
+- Améliorer la séparation texte/fond
+- Compenser une mauvaise exposition
+
+**Algorithme** : Mise à l'échelle linéaire autour de la valeur moyenne :
+```
+nouveau_pixel = moyenne + (ancien_pixel - moyenne) × facteur
+```
+
+**Facteurs** :
+- `< 1.0` : Diminue le contraste
+- `= 1.0` : Pas de changement (par défaut)
+- `> 1.0` : Augmente le contraste
+
+**Quand l'utiliser** :
+- Photos de documents avec faible contraste
+- Scans surexposés ou sous-exposés
+- Texte gris sur fond gris
+
+**CLI** :
+```bash
+# Augmenter le contraste de 50%
+cargo run -- image.png --contrast 1.5
+
+# Diminuer le contraste de 20%
+cargo run -- image.png --contrast 0.8
+```
+
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::adjust_contrast;
+use image::open;
+
+let img = open("image.png")?;
+let contrasted = adjust_contrast(&img, 1.5);
+```
+
+**Recommandations** :
+- **1.2 - 1.5** : Augmentation modérée (usage courant)
+- **1.5 - 2.0** : Augmentation forte (images très fades)
+- **0.8 - 0.9** : Diminution légère (rarement utilisé)
+
+---
+
+### 3. Débruitage (Denoise)
+
+**Objectif** : Supprimer le bruit (pixels parasites) de l'image.
+
+**Pourquoi** :
+- Photos prises avec mauvais éclairage
+- Scans de mauvaise qualité
+- Compression JPEG agressive
+- Bruit "sel et poivre" (pixels blancs/noirs aléatoires)
+
+**Algorithme** : Filtre médian 3×3
+- Chaque pixel est remplacé par la valeur médiane de ses 8 voisins
+- Préserve les contours tout en supprimant le bruit
+
+**Quand l'utiliser** :
+- Images bruitées (grain visible)
+- Photos de documents prises avec smartphone
+- Scans anciens ou de faible qualité
+- Avant la binarisation
+
+**CLI** :
+```bash
+cargo run -- image.png --denoise
+```
+
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::denoise;
+use image::open;
+
+let img = open("image.png")?;
+let denoised = denoise(&img);
+```
+
+**Limitations** :
+- Peut légèrement flouter les détails fins
+- Une seule passe (pour texte très bruité, appliquer plusieurs fois)
+
+---
+
+### 4. Binarisation
+
+**Objectif** : Convertir l'image en **noir et blanc pur** (2 couleurs uniquement).
+
+**Pourquoi** :
+- Tesseract fonctionne mieux avec des images binaires
+- Élimine les variations de luminosité
+- Sépare clairement le texte du fond
+
+**Méthodes disponibles** :
+
+#### a) Seuil Fixe (Fixed Threshold)
+
+**Description** : Tous les pixels au-dessus d'un seuil deviennent blancs, les autres noirs.
+
+**Algorithme** :
+```
+si pixel >= seuil alors blanc sinon noir
+```
+
+**Seuil par défaut** : 127 (milieu de l'échelle 0-255)
+
+**Avantages** :
+- Simple et rapide
+- Prévisible
+
+**Inconvénients** :
+- Ne s'adapte pas aux variations d'éclairage
+- Un seul seuil pour toute l'image
+
+**Quand l'utiliser** :
+- Éclairage uniforme
+- Image déjà bien contrastée
+- Besoin de rapidité
+
+**CLI** :
+```bash
+cargo run -- image.png --binarize --binarize-method fixed --binarize-threshold 127
+```
+
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::{binarize, BinarizationMethod};
+use image::open;
+
+let img = open("image.png")?;
+let binary = binarize(&img, &BinarizationMethod::Fixed(127));
+```
+
+---
+
+#### b) Méthode d'Otsu (Otsu's Method)
+
+**Description** : Calcule automatiquement le seuil optimal en maximisant la variance inter-classes.
+
+**Algorithme** : Analyse l'histogramme de l'image et trouve le seuil qui sépare le mieux les pixels sombres (texte) des pixels clairs (fond).
+
+**Avantages** :
+- **Automatique** : Pas besoin de spécifier le seuil
+- Fonctionne bien pour les images bimodales (deux pics dans l'histogramme)
+- Robuste
+
+**Inconvénients** :
+- Un seul seuil global (comme Fixed)
+- Moins bon avec éclairage non uniforme
+
+**Quand l'utiliser** :
+- **Par défaut** pour la plupart des images
+- Éclairage relativement uniforme
+- Documents scannés
+- Quand vous ne savez pas quel seuil utiliser
+
+**CLI** :
+```bash
+cargo run -- image.png --binarize --binarize-method otsu
+# Ou simplement (Otsu est la méthode par défaut) :
+cargo run -- image.png --binarize
+```
+
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::{binarize, BinarizationMethod};
+use image::open;
+
+let img = open("image.png")?;
+let binary = binarize(&img, &BinarizationMethod::Otsu);
+```
+
+---
+
+#### c) Binarisation Adaptative (Adaptive Thresholding)
+
+**Description** : Calcule un seuil **local** pour chaque région de l'image.
+
+**Algorithme** :
+- Divise l'image en fenêtres de `block_size × block_size` pixels
+- Calcule un seuil pour chaque fenêtre
+- Compare chaque pixel à la moyenne locale
+
+**Paramètres** :
+- `block_size` : Taille de la fenêtre (défaut : 15)
+- `c` : Constante soustraite à la moyenne (défaut : 10)
+
+**Avantages** :
+- **S'adapte aux variations d'éclairage**
+- Excellent pour photos de documents
+- Fonctionne avec ombres et reflets
+
+**Inconvénients** :
+- Plus lent que les méthodes globales
+- Peut créer du bruit si mal paramétré
+
+**Quand l'utiliser** :
+- **Photos de documents** prises avec smartphone
+- Éclairage non uniforme
+- Ombres ou reflets sur le document
+- Scans avec dégradés
+
+**CLI** :
+```bash
+# Avec paramètres par défaut (block_size=15, c=10)
+cargo run -- image.png --binarize --binarize-method adaptive
+
+# Avec paramètres personnalisés
+cargo run -- image.png --binarize --binarize-method adaptive --block-size 21 --adaptive-c 8
+```
+
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::{binarize, BinarizationMethod};
+use image::open;
+
+let img = open("image.png")?;
+let binary = binarize(&img, &BinarizationMethod::Adaptive { block_size: 15, c: 10 });
+```
+
+**Recommandations pour block_size** :
+- **11-15** : Texte de taille normale
+- **19-25** : Texte de grande taille
+- **7-9** : Texte très petit
+- **Toujours impair** (pour avoir un centre de fenêtre)
+
+---
+
+### Comparaison des Méthodes de Binarisation
+
+| Méthode | Rapidité | Qualité | Éclairage uniforme | Éclairage variable | Usage |
+|---------|----------|---------|-------------------|-------------------|-------|
+| **Fixed** | ⚡⚡⚡ Très rapide | ⭐⭐ Moyen | ✅ Excellent | ❌ Mauvais | Images propres |
+| **Otsu** | ⚡⚡ Rapide | ⭐⭐⭐ Bon | ✅ Excellent | ⚠️ Moyen | **Par défaut** |
+| **Adaptive** | ⚡ Lent | ⭐⭐⭐⭐ Très bon | ✅ Excellent | ✅ Excellent | **Photos** |
+
+---
+
+### 5. Redressement (Deskew)
+
+**Objectif** : Corriger l'inclinaison du texte (rotation).
+
+**Pourquoi** :
+- Documents scannés de travers
+- Photos prises avec un angle
+- Améliore la segmentation de lignes
+
+**État actuel** : ⚠️ **Fonction stub** (ne fait rien actuellement)
+
+**Implémentation future** :
+- Détection d'angle via transformée de Hough
+- Rotation de l'image pour redresser le texte
+
+**CLI** (pas encore fonctionnel) :
+```bash
+cargo run -- image.png --deskew
+```
+
+**Note** : Cette fonction est dans la TODO Phase 7.1 (Extensions optionnelles).
+
+---
+
+### Configuration du Prétraitement
+
+#### Via la CLI
+
+**Option 1 : Preset simple**
+```bash
+# Active toutes les opérations avec valeurs par défaut
+cargo run -- image.png --preprocess
+```
+
+Équivalent à :
+```bash
+cargo run -- image.png --grayscale --binarize --denoise --contrast 1.0 --deskew
+```
+
+**Option 2 : Configuration manuelle**
+```bash
+cargo run -- photo.jpg \
+  --grayscale \
+  --contrast 1.5 \
+  --denoise \
+  --binarize \
+  --binarize-method adaptive \
+  --block-size 15
+```
+
+**Option 3 : Opérations sélectives**
+```bash
+# Seulement binarisation et débruitage
+cargo run -- image.png --binarize --denoise
+
+# Seulement ajustement de contraste
+cargo run -- image.png --contrast 1.8
+```
+
+---
+
+#### Via le Code Rust
+
+**Approche 1 : Configuration manuelle**
+
+```rust
+use text_recognition::preprocessing::{PreprocessingConfig, BinarizationMethod, preprocess_image};
+use image::open;
+
+let img = open("photo.jpg")?;
+
+let config = PreprocessingConfig {
+    grayscale: true,
+    contrast_factor: 1.5,
+    denoise: true,
+    binarize: true,
+    binarization_method: BinarizationMethod::Adaptive { block_size: 15, c: 10 },
+    deskew: false,
+};
+
+let preprocessed = preprocess_image(&img, &config);
+```
+
+**Approche 2 : Builder pattern**
+
+```rust
+use text_recognition::preprocessing::PreprocessingConfig;
+
+let config = PreprocessingConfig {
+    grayscale: true,
+    denoise: true,
+    binarize: true,
+    ..Default::default()
+};
+```
+
+**Approche 3 : Avec OcrEngine**
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig, preprocessing::PreprocessingConfig};
+
+let ocr_config = OcrConfig::default();
+let preprocessing_config = PreprocessingConfig {
+    grayscale: true,
+    binarize: true,
+    ..Default::default()
+};
+
+let mut engine = OcrEngine::with_preprocessing(ocr_config, preprocessing_config)?;
+let text = engine.extract_text_from_file("photo.jpg")?;
+```
+
+---
+
+### Pipelines de Prétraitement Recommandés
+
+#### Pipeline 1 : Document Scanné (Haute Qualité)
+
+```bash
+cargo run -- scan.png --binarize --binarize-method otsu
+```
+
+**Pourquoi** :
+- Scan déjà net et droit
+- Pas besoin de débruitage
+- Binarisation Otsu suffit
+
+---
+
+#### Pipeline 2 : Photo de Document (Qualité Moyenne)
+
+```bash
+cargo run -- photo.jpg \
+  --grayscale \
+  --contrast 1.5 \
+  --denoise \
+  --binarize \
+  --binarize-method adaptive \
+  --block-size 15
+```
+
+**Pourquoi** :
+- Photo = couleur → grayscale
+- Souvent sous-exposé → contrast 1.5
+- Bruit du capteur → denoise
+- Éclairage variable → adaptive binarization
+
+---
+
+#### Pipeline 3 : Capture d'Écran
+
+```bash
+cargo run -- screenshot.png --binarize --binarize-method otsu
+```
+
+**Pourquoi** :
+- Déjà net, pas de bruit
+- Pas de variation d'éclairage
+- Binarisation simple suffit
+
+---
+
+#### Pipeline 4 : Document Ancien/Dégradé
+
+```bash
+cargo run -- old_scan.tiff \
+  --grayscale \
+  --contrast 1.8 \
+  --denoise \
+  --binarize \
+  --binarize-method adaptive \
+  --block-size 19
+```
+
+**Pourquoi** :
+- Papier jauni → contrast élevé
+- Taches et bruit → denoise
+- Variations d'encre → adaptive avec block_size élevé
+
+---
+
+#### Pipeline 5 : Texte sur Fond Complexe
+
+```bash
+cargo run -- complex_bg.png \
+  --grayscale \
+  --contrast 2.0 \
+  --binarize \
+  --binarize-method adaptive \
+  --block-size 11 \
+  --adaptive-c 15
+```
+
+**Pourquoi** :
+- Fond complexe → contrast très élevé
+- Variations locales → adaptive avec c élevé
+- Block_size petit pour s'adapter finement
+
+---
+
+### Arbre de Décision : Quel Prétraitement ?
+
+```
+Votre image est...
+
+└─ Un scan haute qualité ?
+   └─ OUI → Binarisation Otsu uniquement
+   └─ NON ↓
+
+└─ Une capture d'écran ?
+   └─ OUI → Binarisation Otsu uniquement
+   └─ NON ↓
+
+└─ Une photo de document ?
+   └─ OUI ↓
+       └─ Éclairage uniforme ?
+          └─ OUI → Grayscale + Contrast (1.3) + Binarize (Otsu)
+          └─ NON → Grayscale + Contrast (1.5) + Denoise + Binarize (Adaptive)
+   └─ NON ↓
+
+└─ Un document ancien/dégradé ?
+   └─ OUI → Grayscale + Contrast (1.8) + Denoise + Binarize (Adaptive, block_size=19)
+   └─ NON ↓
+
+└─ Texte sur fond complexe ?
+   └─ OUI → Grayscale + Contrast (2.0) + Binarize (Adaptive, c=15)
+```
+
+---
+
+### Mesurer l'Impact du Prétraitement
+
+Pour comparer avec et sans prétraitement :
+
+```bash
+# Sans prétraitement
+cargo run -- image.png --expected expected.txt --metrics
+
+# Avec prétraitement
+cargo run -- image.png --preprocess --expected expected.txt --metrics
+```
+
+**Exemple de résultat** :
+
+```
+Sans prétraitement :
+  CER: 8.5%
+  WER: 12.3%
+
+Avec prétraitement :
+  CER: 2.1%  ← Amélioration de 75%
+  WER: 3.8%  ← Amélioration de 69%
+```
+
+---
+
+### Erreurs Courantes à Éviter
+
+#### 1. Sur-traitement
+
+❌ **Mauvais** :
+```bash
+cargo run -- image.png --contrast 3.0 --denoise --binarize
+```
+
+→ Contraste trop élevé peut créer des artéfacts
+
+✅ **Bon** :
+```bash
+cargo run -- image.png --contrast 1.5 --denoise --binarize
+```
+
+---
+
+#### 2. Ordre incorrect des opérations
+
+❌ **Mauvais** :
+```bash
+# L'ordre dans la CLI n'a pas d'importance, mais conceptuellement :
+# Binariser AVANT de débruiter perd l'information de niveaux de gris
+```
+
+✅ **Bon** :
+Le pipeline applique toujours l'ordre correct :
+1. Grayscale
+2. Contrast
+3. Denoise
+4. Binarize
+5. Deskew
+
+---
+
+#### 3. Binarisation sans conversion en niveaux de gris
+
+❌ **Mauvais** :
+```bash
+cargo run -- color_photo.jpg --binarize
+```
+
+✅ **Bon** :
+```bash
+cargo run -- color_photo.jpg --grayscale --binarize
+```
+
+---
+
+#### 4. Block size pair pour adaptive
+
+❌ **Mauvais** :
+```bash
+cargo run -- image.png --binarize --binarize-method adaptive --block-size 14
+```
+
+✅ **Bon** :
+```bash
+cargo run -- image.png --binarize --binarize-method adaptive --block-size 15
+```
+
+---
+
+### Visualiser les Résultats du Prétraitement
+
+Les images prétraitées peuvent être sauvegardées pour inspection :
+
+```rust
+use text_recognition::preprocessing::{preprocess_image, PreprocessingConfig};
+use image::open;
+
+let img = open("input.png")?;
+let config = PreprocessingConfig::default();
+let preprocessed = preprocess_image(&img, &config);
+
+// Sauvegarder le résultat
+preprocessed.save("preprocessed.png")?;
+```
+
+Comparez visuellement `input.png` et `preprocessed.png` pour vérifier l'effet.
+
+---
+
+### Ressources sur le Prétraitement
+
+- [Tesseract: Improving Quality](https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html)
+- [Image Preprocessing for OCR](https://nanonets.com/blog/ocr-preprocessing/)
+- [Otsu's Method (Wikipedia)](https://en.wikipedia.org/wiki/Otsu%27s_method)
+- [Adaptive Thresholding](https://en.wikipedia.org/wiki/Adaptive_thresholding)
 
 ---
 
