@@ -28,21 +28,33 @@ Projet éducatif pour apprendre à paramétrer Tesseract OCR avec Rust, en testa
 
 ### Règle #2 : Validation Avant Commit
 
+**IMPORTANT** : **Toujours utiliser le Makefile** pour lancer les commandes de validation.
+
+Le Makefile configure automatiquement l'environnement selon l'OS (macOS/Linux) et résout les problèmes de compilation avec bindgen/leptonica.
+
 **Avant CHAQUE commit**, exécuter systématiquement dans cet ordre :
 
 ```bash
 # 1. Formatage du code
-cargo fmt
+make fmt
 
 # 2. Linting avec Clippy (corriger tous les warnings)
-cargo clippy --all-targets --all-features -- -D warnings
+make clippy
 
 # 3. Compilation
-cargo build
+make build
 
 # 4. Tests (si des tests existent)
-cargo test
+make test
 ```
+
+**OU utiliser la commande tout-en-un pour la validation complète** :
+
+```bash
+make validate
+```
+
+Cette commande exécute automatiquement : `fmt`, `clippy`, `build`, et `test` dans l'ordre.
 
 **Tous les checks doivent passer** avant de créer un commit. Si une erreur survient :
 - Corriger le problème immédiatement
@@ -50,6 +62,8 @@ cargo test
 - Ne committer que si tout est vert ✅
 
 **Exception** : Si la tâche consiste à créer une structure vide ou des répertoires, `cargo test` peut échouer temporairement. Dans ce cas, s'assurer au minimum que `cargo build` passe.
+
+**⚠️ NE JAMAIS utiliser directement les commandes `cargo` pour la validation** car elles échoueront sur Linux à cause de problèmes d'environnement bindgen. Le Makefile résout ce problème automatiquement.
 
 ---
 
@@ -113,11 +127,12 @@ Pour chaque tâche :
 1. **Lire** `TODO.md` et identifier la prochaine tâche non complétée
 2. **Annoncer** la tâche à l'utilisateur
 3. **Implémenter** la tâche (code, tests, documentation selon besoin)
-4. **Vérifier** avec les commandes de validation :
-   - `cargo fmt`
-   - `cargo clippy --all-targets --all-features -- -D warnings`
-   - `cargo build`
-   - `cargo test` (si applicable)
+4. **Vérifier** avec les commandes de validation via le Makefile :
+   - `make fmt`
+   - `make clippy`
+   - `make build`
+   - `make test` (si applicable)
+   - OU simplement `make validate` pour tout exécuter
 5. **Corriger** les éventuels problèmes jusqu'à ce que tout passe
 6. **Committer** avec un message de commit approprié
 7. **Marquer** la tâche comme complétée dans `TODO.md` (changer `[ ]` en `[x]`)
@@ -127,31 +142,103 @@ Pour chaque tâche :
 
 ## 🛠️ Commandes Utiles
 
-### Développement
-```bash
-# Vérifier compilation rapide
-cargo check
+**IMPORTANT** : Toujours utiliser le **Makefile** pour les opérations de build, test et validation.
 
-# Compiler en mode release (pour performance)
-cargo build --release
+### Makefile - Commandes Principales
+
+```bash
+# Afficher la configuration détectée (macOS/Linux)
+make info
+
+# Formatage du code
+make fmt
+
+# Lint avec Clippy (échoue sur les warnings)
+make clippy
+
+# Compiler en mode debug
+make build
+
+# Compiler en mode release
+make release
+
+# Lancer les tests
+make test
+
+# Validation complète avant commit (fmt + clippy + build + test)
+make validate
 
 # Exécuter le binaire
-cargo run -- <args>
+make run ARGS="image.png --lang fra"
+
+# Générer la documentation
+make doc
+
+# Nettoyer les artefacts de build
+make clean
+
+# Afficher l'aide
+make help
+```
+
+### Développement
+
+```bash
+# Exemples d'utilisation de la CLI
+
+# OCR simple
+make run ARGS="resources/simple/img-1.png"
+
+# OCR avec langue spécifique
+make run ARGS="resources/simple/img-1.png --lang eng"
+
+# OCR avec mode PSM spécifique
+make run ARGS="resources/simple/img-1.png --psm 6"
+
+# OCR avec prétraitement
+make run ARGS="resources/simple/img-1.png --preprocess --grayscale --binarize"
+
+# OCR avec comparaison de référence
+make run ARGS="resources/simple/img-1.png --expected resources/expected/img-1.txt"
+
+# OCR avec export CSV
+make run ARGS="resources/simple/img-1.png --expected resources/expected/img-1.txt --csv-export metrics.csv"
+
+# Tester tous les modes PSM
+make run ARGS="resources/simple/img-1.png --test-all-psm"
+
+# Tester tous les modes PSM avec export CSV
+make run ARGS="resources/simple/img-1.png --expected resources/expected/img-1.txt --test-all-psm --csv-export all_psm.csv"
+
+# Mode batch
+make run ARGS="--batch resources/simple/"
+
+# Mode batch avec sortie dans un répertoire
+make run ARGS="--batch resources/simple/ --output results/"
+```
+
+### Pourquoi utiliser le Makefile ?
+
+Le Makefile détecte automatiquement l'OS et configure les variables d'environnement nécessaires :
+
+- **macOS** : Configure `SDKROOT` pour Xcode
+- **Linux** : Configure `BINDGEN_EXTRA_CLANG_ARGS=--target=x86_64-unknown-linux-gnu`
+
+Sans le Makefile, la compilation échouera sur Linux avec une erreur bindgen/leptonica.
+
+### Commandes Cargo Directes (À ÉVITER pour la validation)
+
+⚠️ **Ces commandes peuvent échouer sur Linux**. Utilisez le Makefile à la place.
+
+```bash
+# Vérifier compilation rapide (peut échouer sur Linux)
+cargo check
 
 # Lancer un test spécifique
 cargo test test_name
 
 # Lancer tests avec sortie détaillée
 cargo test -- --nocapture
-
-# Voir la documentation générée
-cargo doc --open
-```
-
-### Nettoyage
-```bash
-# Nettoyer les artefacts de build
-cargo clean
 
 # Mettre à jour les dépendances
 cargo update
@@ -165,11 +252,17 @@ cargo update
 - `src/main.rs` : CLI, point d'entrée du binaire
 - `src/ocr.rs` : Logique OCR, wrapper Tesseract
 - `src/config.rs` : Structures de configuration
+- `src/config_file.rs` : Chargement de configuration depuis fichiers JSON/TOML
 - `src/preprocessing.rs` : Prétraitement d'images
-- `src/metrics.rs` : Calcul de métriques de qualité
+- `src/metrics.rs` : Calcul de métriques de qualité (CER, WER, export CSV)
 - `tests/` : Tests d'intégration
-- `test_images/` : Images pour les tests
+- `resources/` : Images de test et textes de référence
+  - `resources/simple/` : Images simples (texte clair)
+  - `resources/medium/` : Images moyennes (qualité variable)
+  - `resources/complex/` : Images complexes (difficiles)
+  - `resources/expected/` : Textes de référence pour validation
 - `docs/` : Documentation approfondie
+- `Makefile` : Configuration multi-OS pour build (IMPORTANT !)
 
 ---
 
@@ -251,12 +344,12 @@ pub fn extract_text_from_file(&mut self, path: &Path) -> Result<String>
 Avant de marquer une tâche comme terminée :
 
 - [ ] Le code compile sans warnings
-- [ ] `cargo fmt` n'a rien modifié
-- [ ] `cargo clippy` ne retourne aucun warning
-- [ ] Les tests passent (`cargo test`)
+- [ ] `make fmt` n'a rien modifié
+- [ ] `make clippy` ne retourne aucun warning
+- [ ] Les tests passent (`make test`)
 - [ ] Le code public est documenté avec `///`
 - [ ] La tâche fait exactement ce qui est demandé, ni plus ni moins
-- [ ] Commit créé avec message descriptif au format `[Phase X.Y] Description`
+- [ ] Commit créé avec message descriptif au format Conventional Commits
 - [ ] Tâche marquée comme complétée dans `TODO.md`
 
 ---
@@ -291,10 +384,11 @@ Avant de marquer une tâche comme terminée :
                ▼
 ┌─────────────────────────────────────────┐
 │ Validation :                            │
-│ - cargo fmt                             │
-│ - cargo clippy                          │
-│ - cargo build                           │
-│ - cargo test                            │
+│ - make fmt                              │
+│ - make clippy                           │
+│ - make build                            │
+│ - make test                             │
+│ (OU : make validate)                    │
 └──────────────┬──────────────────────────┘
                │
                ▼
@@ -403,6 +497,6 @@ Ne pas optimiser prématurément. La clarté prime sur la performance.
 
 ---
 
-**Version** : 1.0  
-**Dernière mise à jour** : 2026-02-13  
+**Version** : 1.1  
+**Dernière mise à jour** : 2026-02-16  
 **Projet** : Text Recognition - OCR Tesseract Learning
