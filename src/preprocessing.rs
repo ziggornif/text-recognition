@@ -21,7 +21,7 @@
 //! ```
 
 use anyhow::Result;
-use image::{DynamicImage, GrayImage};
+use image::{DynamicImage, GrayImage, imageops};
 
 /// Configuration pour le prétraitement d'images.
 ///
@@ -79,6 +79,71 @@ pub enum BinarizationMethod {
 
     /// Binarisation adaptative - seuil calculé localement
     Adaptive,
+}
+
+/// Orientation d'une image détectée par Tesseract (PSM 0).
+///
+/// Tesseract retourne l'orientation en degrés dans le sens horaire.
+/// Cette enum représente les quatre orientations possibles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Orientation {
+    /// 0° : image droite, aucune correction nécessaire.
+    Upright,
+    /// 90° dans le sens horaire : le haut de l'image est à droite.
+    Clockwise90,
+    /// 180° : image à l'envers.
+    UpsideDown,
+    /// 270° dans le sens horaire (= 90° antihoraire) : le haut est à gauche.
+    CounterClockwise90,
+}
+
+impl Orientation {
+    /// Crée une `Orientation` depuis le code retourné par Tesseract PSM 0.
+    ///
+    /// Tesseract retourne la valeur `Orientation in degrees` qui correspond
+    /// à la rotation à appliquer pour remettre l'image droite.
+    ///
+    /// # Arguments
+    ///
+    /// * `degrees` - Valeur en degrés retournée par Tesseract (0, 90, 180 ou 270)
+    pub fn from_tesseract_degrees(degrees: u32) -> Self {
+        match degrees {
+            90 => Orientation::Clockwise90,
+            180 => Orientation::UpsideDown,
+            270 => Orientation::CounterClockwise90,
+            _ => Orientation::Upright,
+        }
+    }
+}
+
+/// Corrige l'orientation d'une image selon l'angle détecté.
+///
+/// Applique une rotation de 90°, 180° ou 270° pour remettre l'image droite.
+/// Utilise les fonctions de rotation sans perte de la bibliothèque `image`.
+///
+/// # Arguments
+///
+/// * `image` - L'image à corriger
+/// * `orientation` - L'orientation détectée (via Tesseract PSM 0)
+///
+/// # Exemple
+///
+/// ```no_run
+/// use text_recognition::preprocessing::{Orientation, rotate_orientation};
+/// use image::open;
+///
+/// let img = open("upside_down.png").unwrap();
+/// let corrected = rotate_orientation(&img, Orientation::UpsideDown);
+/// ```
+pub fn rotate_orientation(image: &DynamicImage, orientation: Orientation) -> DynamicImage {
+    match orientation {
+        Orientation::Upright => image.clone(),
+        Orientation::Clockwise90 => DynamicImage::ImageRgba8(imageops::rotate90(&image.to_rgba8())),
+        Orientation::UpsideDown => DynamicImage::ImageRgba8(imageops::rotate180(&image.to_rgba8())),
+        Orientation::CounterClockwise90 => {
+            DynamicImage::ImageRgba8(imageops::rotate270(&image.to_rgba8()))
+        }
+    }
 }
 
 /// Applique un pipeline de prétraitement complet à une image.

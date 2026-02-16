@@ -5,7 +5,9 @@
 //! des images avec différentes configurations.
 
 use crate::config::OcrConfig;
-use crate::preprocessing::{PreprocessingConfig, preprocess_image};
+use crate::preprocessing::{
+    Orientation, PreprocessingConfig, preprocess_image, rotate_orientation,
+};
 use anyhow::{Context, Result};
 use image::DynamicImage;
 use std::path::Path;
@@ -171,6 +173,61 @@ impl OcrEngine {
         }
 
         Ok(info)
+    }
+
+    /// Détecte l'orientation d'une image et retourne l'image corrigée.
+    ///
+    /// Cette méthode appelle Tesseract en PSM 0 pour détecter l'orientation
+    /// (0°, 90°, 180° ou 270°), puis applique la rotation inverse pour remettre
+    /// l'image droite. Elle gère les images à l'envers ou pivotées.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Chemin vers l'image à analyser et corriger
+    ///
+    /// # Exemple
+    ///
+    /// ```no_run
+    /// use text_recognition::ocr::OcrEngine;
+    /// use text_recognition::config::OcrConfig;
+    /// use std::path::Path;
+    ///
+    /// let engine = OcrEngine::new(OcrConfig::default()).unwrap();
+    /// let corrected = engine.detect_and_correct_orientation(Path::new("upside_down.png")).unwrap();
+    /// ```
+    ///
+    /// # Erreurs
+    ///
+    /// Retourne une erreur si :
+    /// - Le fichier image n'existe pas ou est illisible
+    /// - Le binaire `tesseract` n'est pas installé ou introuvable
+    /// - Le chargement de l'image échoue
+    pub fn detect_and_correct_orientation(&self, path: &Path) -> Result<DynamicImage> {
+        let path_str = path.to_str().context("Chemin invalide")?;
+
+        // Appeler Tesseract PSM 0 pour obtenir l'orientation
+        let output = Command::new("tesseract")
+            .args([path_str, "stdout", "--psm", "0", "-l", "osd"])
+            .output()
+            .context("Impossible de lancer le binaire tesseract")?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Parser la ligne "Orientation in degrees: N"
+        let degrees = stdout
+            .lines()
+            .find(|line| line.starts_with("Orientation in degrees:"))
+            .and_then(|line| line.split(':').nth(1))
+            .and_then(|val| val.trim().parse::<u32>().ok())
+            .unwrap_or(0);
+
+        let orientation = Orientation::from_tesseract_degrees(degrees);
+
+        // Charger l'image et appliquer la correction
+        let img = image::open(path)
+            .with_context(|| format!("Échec du chargement de l'image '{}'", path.display()))?;
+
+        Ok(rotate_orientation(&img, orientation))
     }
 
     /// Extrait le texte d'une image.

@@ -104,9 +104,22 @@ struct Args {
 
     /// Corriger l'inclinaison du document (deskew)
     ///
-    /// Note: Actuellement un stub (pas encore implémenté complètement)
+    /// Détecte et corrige les inclinaisons légères (-20° à +20°) par analyse
+    /// de la projection horizontale. Pour les rotations à 90°/180°/270°,
+    /// utiliser --auto-rotate.
     #[arg(long, requires = "preprocess")]
     deskew: bool,
+
+    /// Corriger automatiquement l'orientation de l'image
+    ///
+    /// Utilise Tesseract (PSM 0) pour détecter l'orientation réelle de l'image
+    /// (0°, 90°, 180°, 270°) et applique la rotation nécessaire avant l'OCR.
+    /// Utile pour les images à l'envers ou pivotées de 90°/270°.
+    ///
+    /// Compatible avec --preprocess pour combiner correction d'orientation
+    /// et prétraitement d'image.
+    #[arg(long)]
+    auto_rotate: bool,
 
     /// Fichier contenant le texte de référence attendu
     ///
@@ -282,8 +295,16 @@ fn test_all_psm_modes(args: &Args) -> Result<()> {
             OcrEngine::new(config)?
         };
 
-        // Extraire le texte
-        match engine.extract_text_from_file(&args.image) {
+        // Extraire le texte (avec correction d'orientation si demandée)
+        let extraction_result = if args.auto_rotate {
+            let helper = OcrEngine::new(OcrConfig::default())?;
+            let corrected = helper.detect_and_correct_orientation(&args.image)?;
+            engine.extract_text_from_image(&corrected)
+        } else {
+            engine.extract_text_from_file(&args.image)
+        };
+
+        match extraction_result {
             Ok(text) => {
                 // Afficher le texte extrait
                 let trimmed_text = text.trim();
@@ -381,8 +402,15 @@ fn main() -> Result<()> {
         OcrEngine::new(config)?
     };
 
-    // Extraire le texte
-    let text = engine.extract_text_from_file(&args.image)?;
+    // Extraire le texte (avec correction d'orientation si demandée)
+    let text = if args.auto_rotate {
+        // Détecter et corriger l'orientation via Tesseract PSM 0
+        let helper = OcrEngine::new(OcrConfig::default())?;
+        let corrected_image = helper.detect_and_correct_orientation(&args.image)?;
+        engine.extract_text_from_image(&corrected_image)?
+    } else {
+        engine.extract_text_from_file(&args.image)?
+    };
 
     // Si un fichier de référence est fourni, comparer et afficher les métriques
     if let Some(expected_path) = args.expected {

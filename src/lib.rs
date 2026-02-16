@@ -35,4 +35,4 @@ pub use metrics::{
     levenshtein_distance,
 };
 pub use ocr::OcrEngine;
-pub use preprocessing::{BinarizationMethod, PreprocessingConfig};
+pub use preprocessing::{BinarizationMethod, Orientation, PreprocessingConfig, rotate_orientation};
