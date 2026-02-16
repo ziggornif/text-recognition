@@ -109,7 +109,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - [x] **7.1** - Implémenter vraie fonction `deskew()` avec détection d'angle
 - [x] **7.2** - Support de fichiers de configuration JSON/TOML
 - [x] **7.3** - Mode batch (traiter plusieurs images)
-- [ ] **7.4** - Export de métriques en CSV
+- [x] **7.4** - Export de métriques en CSV
 - [ ] **7.5** - Visualisation des bounding boxes (format HOCR)
 - [ ] **7.6** - Comparaison de performances entre prétraitements
 - [ ] **7.7** - Support d'autres langues (téléchargement auto de modèles)
@@ -122,9 +122,9 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 - **Total tâches Phase 1-6** : 67 tâches
 - **Tâches Phase 7 (Extensions)** : 8 tâches
 - **Total général** : 75 tâches
-- **Tâches complétées** : 70
-- **Tâches restantes** : 5
-- **Progression** : 93.3%
+- **Tâches complétées** : 71
+- **Tâches restantes** : 4
+- **Progression** : 94.7%
 
 ---
 
