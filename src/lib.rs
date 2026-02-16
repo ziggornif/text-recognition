@@ -23,9 +23,11 @@
 //! - `ocr` : Moteur OCR principal pour l'extraction de texte
 //! - `preprocessing` : Prétraitement d'images pour améliorer la qualité OCR
 //! - `metrics` : Calcul de métriques de qualité OCR (CER, WER)
+//! - `hocr` : Extraction et visualisation des bounding boxes au format HOCR
 
 pub mod config;
 pub mod config_file;
+pub mod hocr;
 pub mod metrics;
 pub mod ocr;
 pub mod preprocessing;
@@ -33,6 +35,7 @@ pub mod preprocessing;
 // Exports publics pour faciliter l'utilisation de la bibliothèque
 pub use config::{OcrConfig, PageSegMode};
 pub use config_file::{AppConfig, load_config};
+pub use hocr::{BBox, HocrDocument, HocrLine, HocrParagraph, HocrWord, generate_hocr};
 pub use metrics::{
     OcrMetrics, TextError, calculate_cer, calculate_wer, compare_ocr_result, generate_diff_report,
     levenshtein_distance,

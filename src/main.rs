@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use text_recognition::{
-    BinarizationMethod, OcrConfig, OcrEngine, PageSegMode, PreprocessingConfig, compare_ocr_result,
-    generate_diff_report, load_config,
+    BinarizationMethod, HocrDocument, OcrConfig, OcrEngine, PageSegMode, PreprocessingConfig,
+    compare_ocr_result, generate_diff_report, generate_hocr, load_config,
 };
 
 /// Outil d'extraction de texte depuis des images (OCR).
@@ -207,6 +207,31 @@ struct Args {
     /// Exemple batch: --batch --expected expected.txt --csv-export results.csv
     #[arg(long, value_name = "CSV_FILE", requires = "expected")]
     csv_export: Option<PathBuf>,
+
+    /// Générer et afficher les bounding boxes au format HOCR
+    ///
+    /// Active l'extraction des bounding boxes (rectangles délimitant les mots,
+    /// lignes, paragraphes, etc.) depuis Tesseract via le format HOCR.
+    /// Affiche un rapport détaillé de tous les bounding boxes détectés.
+    ///
+    /// Utile pour comprendre comment Tesseract segmente le document et
+    /// pour le post-traitement ou la visualisation.
+    ///
+    /// Incompatible avec --batch et --test-all-psm.
+    ///
+    /// Exemple: --hocr
+    /// Exemple avec sortie fichier: --hocr --hocr-output boxes.txt
+    #[arg(long, conflicts_with = "batch", conflicts_with = "test_all_psm")]
+    hocr: bool,
+
+    /// Fichier de sortie pour le rapport HOCR
+    ///
+    /// Si spécifié, le rapport HOCR sera sauvegardé dans ce fichier
+    /// au lieu d'être affiché dans le terminal.
+    ///
+    /// Exemple: --hocr --hocr-output boxes.txt
+    #[arg(long, value_name = "HOCR_FILE", requires = "hocr")]
+    hocr_output: Option<PathBuf>,
 }
 
 /// Convertit un code PSM numérique en PageSegMode.
@@ -806,6 +831,33 @@ fn main() -> Result<()> {
     }
 
     // Mode normal: traiter une seule image
+
+    // Mode HOCR : générer et afficher les bounding boxes
+    if args.hocr {
+        // Générer le HOCR via Tesseract
+        let hocr_content = generate_hocr(&args.image, &args.language, args.psm as u8)?;
+
+        // Parser le document HOCR
+        let doc = HocrDocument::from_hocr_string(&hocr_content)?;
+
+        // Générer le rapport
+        let report = doc.generate_report();
+
+        // Sauvegarder ou afficher le rapport
+        if let Some(output_path) = args.hocr_output {
+            fs::write(&output_path, &report).with_context(|| {
+                format!(
+                    "Impossible d'écrire le fichier de sortie '{}'",
+                    output_path.display()
+                )
+            })?;
+            println!("✓ Rapport HOCR sauvegardé dans: {}", output_path.display());
+        } else {
+            println!("{}", report);
+        }
+
+        return Ok(());
+    }
 
     // Extraire le texte (avec correction d'orientation si demandée)
     let text = if args.auto_rotate {
