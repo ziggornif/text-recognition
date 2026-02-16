@@ -965,20 +965,22 @@ Le prétraitement corrige ces problèmes avant l'OCR.
 
 ### Pipeline de Prétraitement
 
-Ce projet propose un **pipeline de prétraitement** configurable avec 5 opérations principales, appliquées dans cet ordre :
+Ce projet propose un **pipeline de prétraitement** configurable avec 5 opérations principales, appliquées dans cet ordre. La correction d'orientation (`--auto-rotate`) est une étape préalable indépendante, s'appliquant avant le pipeline.
 
 ```
 Image brute
     ↓
+[0. Correction d'orientation --auto-rotate (PSM 0 Tesseract, optionnel)]
+    ↓
 1. Conversion en niveaux de gris (Grayscale)
     ↓
-2. Ajustement du contraste
+2. Redressement (Deskew, ±20°)
     ↓
 3. Débruitage (Denoise)
     ↓
-4. Binarisation
+4. Ajustement du contraste
     ↓
-5. Redressement (Deskew)
+5. Binarisation
     ↓
 Image prétraitée → Tesseract OCR
 ```
@@ -1264,25 +1266,86 @@ let binary = binarize(&img, &BinarizationMethod::Adaptive { block_size: 15, c: 1
 
 ### 5. Redressement (Deskew)
 
-**Objectif** : Corriger l'inclinaison du texte (rotation).
+**Objectif** : Corriger les inclinaisons légères du texte (-20° à +20°).
 
 **Pourquoi** :
 - Documents scannés de travers
 - Photos prises avec un angle
-- Améliore la segmentation de lignes
+- Améliore la segmentation de lignes par Tesseract
 
-**État actuel** : ⚠️ **Fonction stub** (ne fait rien actuellement)
+**Algorithme** :
+1. Teste des angles de -20° à +20° par pas de 0.5°
+2. Pour chaque angle, calcule la variance des projections horizontales — un texte bien aligné produit des pics nets (lignes) et des creux (interlignes)
+3. Retient l'angle maximisant la variance
+4. Applique la rotation inverse avec interpolation bilinéaire
 
-**Implémentation future** :
-- Détection d'angle via transformée de Hough
-- Rotation de l'image pour redresser le texte
-
-**CLI** (pas encore fonctionnel) :
+**CLI** :
 ```bash
-cargo run -- image.png --deskew
+cargo run -- image.png --preprocess --deskew
 ```
 
-**Note** : Cette fonction est dans la TODO Phase 7.1 (Extensions optionnelles).
+**Code Rust** :
+```rust
+use text_recognition::preprocessing::{to_grayscale, deskew};
+use image::open;
+
+let img = open("skewed_document.png")?;
+let gray = to_grayscale(&img);
+let deskewed = deskew(&gray);
+```
+
+**Limitations** :
+- Plage limitée à ±20° (inclinaisons légères uniquement)
+- Pour des rotations à 90°/180°/270°, utiliser `--auto-rotate` (voir section suivante)
+
+---
+
+### 6. Correction d'Orientation (Auto-Rotate)
+
+**Objectif** : Corriger les rotations à 90°, 180° ou 270° (images à l'envers ou pivotées).
+
+**Pourquoi** :
+- Images scannées à l'envers
+- Photos de documents prises en portrait/paysage inversé
+- Documents retournés dans une pile
+
+**Algorithme** :
+1. Appelle Tesseract en mode PSM 0 (OSD Only) pour détecter l'orientation
+2. Parse la valeur `Orientation in degrees` (0, 90, 180 ou 270)
+3. Applique la rotation inverse sans perte via les fonctions `imageops` de la bibliothèque `image`
+
+**Différence avec Deskew** :
+
+| | Deskew | Auto-Rotate |
+|---|--------|-------------|
+| Plage | -20° à +20° | 0°, 90°, 180°, 270° |
+| Détection | Projection horizontale | Tesseract PSM 0 |
+| Usage | Légère inclinaison | Image à l'envers / pivotée |
+
+**CLI** :
+```bash
+# Image à l'envers ou pivotée
+cargo run -- upside_down.png --auto-rotate
+
+# Combiner avec prétraitement
+cargo run -- upside_down.png --auto-rotate --preprocess --grayscale --binarize
+```
+
+**Code Rust** :
+```rust
+use text_recognition::{OcrEngine, OcrConfig};
+use std::path::Path;
+
+let engine = OcrEngine::new(OcrConfig::default())?;
+
+// Détecter l'orientation et obtenir l'image corrigée
+let corrected = engine.detect_and_correct_orientation(Path::new("upside_down.png"))?;
+
+// Extraire le texte depuis l'image corrigée
+let text = engine.extract_text_from_image(&corrected)?;
+```
+
+**Prérequis** : Le modèle `osd.traineddata` doit être installé (inclus avec `tesseract-lang` sur macOS, ou `tesseract-ocr-osd` sur Debian/Ubuntu).
 
 ---
 

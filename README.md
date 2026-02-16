@@ -29,7 +29,8 @@ Ce projet est principalement **éducatif** : il permet de comprendre comment fon
 - **Binarisation** : Trois méthodes (Otsu, seuil fixe, adaptative)
 - **Ajustement de contraste** : Amélioration de la lisibilité
 - **Débruitage** : Réduction du bruit (filtre médian)
-- **Redressement** : Correction de l'inclinaison (deskew - stub actuel)
+- **Redressement (deskew)** : Correction des inclinaisons légères (-20° à +20°) par projection horizontale
+- **Correction d'orientation** : Détection et correction des rotations 90°/180°/270° via Tesseract PSM 0 (`--auto-rotate`)
 
 ### Métriques de Qualité
 
@@ -313,7 +314,17 @@ cargo run -- resources/simple/img-1.png --test-all-psm --expected resources/expe
 
 Cette option est très utile pour déterminer quel mode PSM donne les meilleurs résultats pour un type d'image spécifique.
 
-#### 7. Combiner plusieurs options
+#### 7. Corriger l'orientation automatiquement
+
+```bash
+# Détecter et corriger l'orientation (image à l'envers, pivotée de 90°/270°)
+cargo run -- resources/medium/img-6.png --auto-rotate
+
+# Combiner correction d'orientation et prétraitement
+cargo run -- resources/medium/img-6.png --auto-rotate --preprocess --grayscale --binarize
+```
+
+#### 8. Combiner plusieurs options
 
 ```bash
 # Prétraitement + langue spécifique + métriques
@@ -337,7 +348,7 @@ cargo run -- resources/complex/img-7.png \
   --metrics
 ```
 
-#### 8. Exemples par type d'image
+#### 9. Exemples par type d'image
 
 ##### Document texte classique
 ```bash
@@ -508,19 +519,40 @@ fn main() -> anyhow::Result<()> {
     
     // Configuration du prétraitement
     let preprocessing = PreprocessingConfig {
-        grayscale: true,
+        to_grayscale: true,
         binarize: true,
         binarization_method: BinarizationMethod::Otsu,
         denoise: true,
-        contrast_factor: Some(1.5),
+        adjust_contrast: true,
+        contrast_factor: 1.5,
         deskew: false,
     };
     
     // Créer le moteur avec prétraitement
-    let mut engine = OcrEngine::new(config)?
-        .with_preprocessing(preprocessing);
+    let engine = OcrEngine::with_preprocessing(config, preprocessing)?;
     
-    let text = engine.extract_text_from_file("noisy_image.png")?;
+    let text = engine.extract_text_from_file(std::path::Path::new("noisy_image.png"))?;
+    
+    println!("{}", text);
+    
+    Ok(())
+}
+```
+
+#### Exemple 4b : Correction automatique d'orientation
+
+```rust
+use text_recognition::{OcrEngine, OcrConfig};
+use std::path::Path;
+
+fn main() -> anyhow::Result<()> {
+    let engine = OcrEngine::new(OcrConfig::default())?;
+    
+    // Détecter l'orientation et corriger (image à l'envers, pivotée, etc.)
+    let corrected = engine.detect_and_correct_orientation(Path::new("upside_down.png"))?;
+    
+    // Extraire le texte depuis l'image corrigée
+    let text = engine.extract_text_from_image(&corrected)?;
     
     println!("{}", text);
     
@@ -682,31 +714,31 @@ fn main() -> anyhow::Result<()> {
     // Test avec binarisation Otsu
     let config2 = OcrConfig::default();
     let preprocessing2 = PreprocessingConfig {
-        grayscale: true,
+        to_grayscale: true,
         binarize: true,
         binarization_method: BinarizationMethod::Otsu,
         denoise: false,
-        contrast_factor: None,
+        adjust_contrast: false,
+        contrast_factor: 1.0,
         deskew: false,
     };
-    let mut engine2 = OcrEngine::new(config2)?
-        .with_preprocessing(preprocessing2);
-    let text2 = engine2.extract_text_from_file("image.png")?;
+    let engine2 = OcrEngine::with_preprocessing(config2, preprocessing2)?;
+    let text2 = engine2.extract_text_from_file(std::path::Path::new("image.png"))?;
     let metrics2 = compare_ocr_result(&text2, &expected);
     
     // Test avec binarisation adaptative
     let config3 = OcrConfig::default();
     let preprocessing3 = PreprocessingConfig {
-        grayscale: true,
+        to_grayscale: true,
         binarize: true,
         binarization_method: BinarizationMethod::Adaptive,
         denoise: true,
-        contrast_factor: Some(1.3),
+        adjust_contrast: true,
+        contrast_factor: 1.3,
         deskew: false,
     };
-    let mut engine3 = OcrEngine::new(config3)?
-        .with_preprocessing(preprocessing3);
-    let text3 = engine3.extract_text_from_file("image.png")?;
+    let engine3 = OcrEngine::with_preprocessing(config3, preprocessing3)?;
+    let text3 = engine3.extract_text_from_file(std::path::Path::new("image.png"))?;
     let metrics3 = compare_ocr_result(&text3, &expected);
     
     println!("Sans prétraitement: CER={:.2}%, WER={:.2}%", 
