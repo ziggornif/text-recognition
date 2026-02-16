@@ -256,6 +256,118 @@ impl OcrMetrics {
     pub fn accuracy(&self) -> f64 {
         (1.0 - self.cer).max(0.0)
     }
+
+    /// Exporte les métriques vers une ligne CSV avec en-têtes.
+    ///
+    /// Génère une chaîne CSV représentant ces métriques, avec en-têtes optionnels.
+    /// Format CSV standard avec virgules comme séparateurs.
+    ///
+    /// # Arguments
+    ///
+    /// * `include_headers` - Si `true`, inclut une ligne d'en-têtes avant les données
+    /// * `metadata` - Métadonnées optionnelles à ajouter (image, config, etc.)
+    ///
+    /// # Format
+    ///
+    /// La ligne CSV contient les colonnes suivantes (dans l'ordre) :
+    /// 1. Métadonnées (si fournies) : colonnes supplémentaires définies par l'utilisateur
+    /// 2. CER (Character Error Rate) : taux d'erreur au niveau des caractères
+    /// 3. WER (Word Error Rate) : taux d'erreur au niveau des mots
+    /// 4. Levenshtein Distance : distance d'édition entre les textes
+    /// 5. Reference Char Count : nombre de caractères dans le texte de référence
+    /// 6. OCR Char Count : nombre de caractères dans le texte OCR
+    /// 7. Reference Word Count : nombre de mots dans le texte de référence
+    /// 8. OCR Word Count : nombre de mots dans le texte OCR
+    /// 9. Exact Match : `true` si les textes sont identiques, `false` sinon
+    /// 10. Accuracy : précision calculée (1.0 - CER)
+    ///
+    /// # Exemples
+    ///
+    /// ```
+    /// use text_recognition::metrics::OcrMetrics;
+    /// use std::collections::HashMap;
+    ///
+    /// let metrics = OcrMetrics {
+    ///     cer: 0.05,
+    ///     wer: 0.10,
+    ///     levenshtein_distance: 3,
+    ///     reference_char_count: 60,
+    ///     ocr_char_count: 58,
+    ///     reference_word_count: 12,
+    ///     ocr_word_count: 12,
+    ///     exact_match: false,
+    /// };
+    ///
+    /// // Sans métadonnées
+    /// let csv = metrics.to_csv(true, None);
+    /// assert!(csv.contains("CER,WER"));
+    ///
+    /// // Avec métadonnées
+    /// let mut metadata = HashMap::new();
+    /// metadata.insert("image".to_string(), "test.png".to_string());
+    /// metadata.insert("psm".to_string(), "3".to_string());
+    /// let csv = metrics.to_csv(true, Some(&metadata));
+    /// assert!(csv.contains("image,psm,CER"));
+    /// ```
+    pub fn to_csv(
+        &self,
+        include_headers: bool,
+        metadata: Option<&std::collections::HashMap<String, String>>,
+    ) -> String {
+        let mut result = String::new();
+
+        // Construire les en-têtes
+        if include_headers {
+            // En-têtes de métadonnées (si présentes)
+            if let Some(meta) = metadata {
+                let mut keys: Vec<_> = meta.keys().collect();
+                keys.sort(); // Ordre alphabétique pour cohérence
+                for key in &keys {
+                    result.push_str(key);
+                    result.push(',');
+                }
+            }
+
+            // En-têtes des métriques
+            result.push_str("CER,WER,Levenshtein_Distance,Reference_Char_Count,OCR_Char_Count,");
+            result.push_str("Reference_Word_Count,OCR_Word_Count,Exact_Match,Accuracy\n");
+        }
+
+        // Construire la ligne de données
+        // Métadonnées (si présentes)
+        if let Some(meta) = metadata {
+            let mut keys: Vec<_> = meta.keys().collect();
+            keys.sort();
+            for key in &keys {
+                // Échapper les valeurs qui contiennent des virgules ou guillemets
+                let value = &meta[*key];
+                if value.contains(',') || value.contains('"') || value.contains('\n') {
+                    result.push('"');
+                    result.push_str(&value.replace('"', "\"\""));
+                    result.push('"');
+                } else {
+                    result.push_str(value);
+                }
+                result.push(',');
+            }
+        }
+
+        // Métriques
+        result.push_str(&format!(
+            "{:.6},{:.6},{},{},{},{},{},{},{:.6}\n",
+            self.cer,
+            self.wer,
+            self.levenshtein_distance,
+            self.reference_char_count,
+            self.ocr_char_count,
+            self.reference_word_count,
+            self.ocr_word_count,
+            self.exact_match,
+            self.accuracy()
+        ));
+
+        result
+    }
 }
 
 impl Default for OcrMetrics {
@@ -1489,5 +1601,239 @@ mod tests {
         assert_eq!(metrics.levenshtein_distance, 5);
         assert!((metrics.cer - 5.0 / 41.0).abs() < 0.001); // ~12.2%
         assert_eq!(metrics.reference_char_count, 41);
+    }
+
+    // ============================================================
+    // Tests de l'export CSV
+    // ============================================================
+
+    #[test]
+    fn test_to_csv_without_headers_without_metadata() {
+        let metrics = OcrMetrics {
+            cer: 0.05,
+            wer: 0.10,
+            levenshtein_distance: 3,
+            reference_char_count: 60,
+            ocr_char_count: 58,
+            reference_word_count: 12,
+            ocr_word_count: 12,
+            exact_match: false,
+        };
+
+        let csv = metrics.to_csv(false, None);
+
+        // Devrait contenir uniquement une ligne de données
+        assert_eq!(csv.lines().count(), 1);
+
+        // Vérifier que les valeurs sont présentes
+        assert!(csv.contains("0.05"));
+        assert!(csv.contains("0.10"));
+        assert!(csv.contains("3"));
+        assert!(csv.contains("60"));
+        assert!(csv.contains("58"));
+        assert!(csv.contains("12"));
+        assert!(csv.contains("false"));
+
+        // Ne devrait pas contenir d'en-têtes
+        assert!(!csv.contains("CER"));
+        assert!(!csv.contains("WER"));
+    }
+
+    #[test]
+    fn test_to_csv_with_headers_without_metadata() {
+        let metrics = OcrMetrics {
+            cer: 0.05,
+            wer: 0.10,
+            levenshtein_distance: 3,
+            reference_char_count: 60,
+            ocr_char_count: 58,
+            reference_word_count: 12,
+            ocr_word_count: 12,
+            exact_match: false,
+        };
+
+        let csv = metrics.to_csv(true, None);
+
+        // Devrait contenir deux lignes (en-têtes + données)
+        assert_eq!(csv.lines().count(), 2);
+
+        // Vérifier les en-têtes
+        let lines: Vec<&str> = csv.lines().collect();
+        assert!(lines[0].contains("CER"));
+        assert!(lines[0].contains("WER"));
+        assert!(lines[0].contains("Levenshtein_Distance"));
+        assert!(lines[0].contains("Reference_Char_Count"));
+        assert!(lines[0].contains("OCR_Char_Count"));
+        assert!(lines[0].contains("Reference_Word_Count"));
+        assert!(lines[0].contains("OCR_Word_Count"));
+        assert!(lines[0].contains("Exact_Match"));
+        assert!(lines[0].contains("Accuracy"));
+
+        // Vérifier les données
+        assert!(lines[1].contains("0.05"));
+        assert!(lines[1].contains("0.10"));
+    }
+
+    #[test]
+    fn test_to_csv_with_metadata() {
+        let metrics = OcrMetrics {
+            cer: 0.05,
+            wer: 0.10,
+            levenshtein_distance: 3,
+            reference_char_count: 60,
+            ocr_char_count: 58,
+            reference_word_count: 12,
+            ocr_word_count: 12,
+            exact_match: false,
+        };
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("image".to_string(), "test.png".to_string());
+        metadata.insert("psm".to_string(), "3".to_string());
+        metadata.insert("language".to_string(), "fra".to_string());
+
+        let csv = metrics.to_csv(true, Some(&metadata));
+
+        // Vérifier que les métadonnées sont présentes dans les en-têtes
+        let lines: Vec<&str> = csv.lines().collect();
+        assert!(lines[0].contains("image"));
+        assert!(lines[0].contains("psm"));
+        assert!(lines[0].contains("language"));
+
+        // Vérifier que les métadonnées sont présentes dans les données
+        assert!(lines[1].contains("test.png"));
+        assert!(lines[1].contains("3"));
+        assert!(lines[1].contains("fra"));
+    }
+
+    #[test]
+    fn test_to_csv_metadata_with_special_characters() {
+        let metrics = OcrMetrics {
+            cer: 0.0,
+            wer: 0.0,
+            levenshtein_distance: 0,
+            reference_char_count: 10,
+            ocr_char_count: 10,
+            reference_word_count: 2,
+            ocr_word_count: 2,
+            exact_match: true,
+        };
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("filename".to_string(), "test, file.png".to_string());
+        metadata.insert("config".to_string(), "\"special\"".to_string());
+
+        let csv = metrics.to_csv(true, Some(&metadata));
+
+        // Vérifier que les valeurs avec virgules sont échappées avec des guillemets
+        assert!(csv.contains("\"test, file.png\""));
+        // Vérifier que les guillemets sont doublés
+        assert!(csv.contains("\"\"\"special\"\"\""));
+    }
+
+    #[test]
+    fn test_to_csv_exact_match() {
+        let metrics = OcrMetrics {
+            cer: 0.0,
+            wer: 0.0,
+            levenshtein_distance: 0,
+            reference_char_count: 10,
+            ocr_char_count: 10,
+            reference_word_count: 2,
+            ocr_word_count: 2,
+            exact_match: true,
+        };
+
+        let csv = metrics.to_csv(true, None);
+
+        // Vérifier les valeurs pour un match exact
+        let lines: Vec<&str> = csv.lines().collect();
+        assert!(lines[1].contains("0.000000")); // CER = 0
+        assert!(lines[1].contains("true")); // Exact match
+        assert!(lines[1].contains("1.000000")); // Accuracy = 100%
+    }
+
+    #[test]
+    fn test_to_csv_accuracy_calculation() {
+        let metrics = OcrMetrics {
+            cer: 0.25,
+            wer: 0.50,
+            levenshtein_distance: 5,
+            reference_char_count: 20,
+            ocr_char_count: 18,
+            reference_word_count: 4,
+            ocr_word_count: 3,
+            exact_match: false,
+        };
+
+        let csv = metrics.to_csv(false, None);
+
+        // Accuracy = 1.0 - CER = 1.0 - 0.25 = 0.75
+        assert!(csv.contains("0.75"));
+    }
+
+    #[test]
+    fn test_to_csv_multiple_metrics() {
+        let metrics1 = OcrMetrics {
+            cer: 0.05,
+            wer: 0.10,
+            levenshtein_distance: 3,
+            reference_char_count: 60,
+            ocr_char_count: 58,
+            reference_word_count: 12,
+            ocr_word_count: 12,
+            exact_match: false,
+        };
+
+        let metrics2 = OcrMetrics {
+            cer: 0.10,
+            wer: 0.20,
+            levenshtein_distance: 6,
+            reference_char_count: 60,
+            ocr_char_count: 56,
+            reference_word_count: 12,
+            ocr_word_count: 11,
+            exact_match: false,
+        };
+
+        // Premier export avec en-têtes
+        let csv1 = metrics1.to_csv(true, None);
+        // Second export sans en-têtes
+        let csv2 = metrics2.to_csv(false, None);
+
+        // Combiner les deux
+        let combined = format!("{}{}", csv1, csv2);
+
+        // Vérifier qu'on a 3 lignes (en-têtes + 2 données)
+        assert_eq!(combined.lines().count(), 3);
+
+        // Vérifier que les en-têtes n'apparaissent qu'une fois
+        let header_count = combined.matches("CER,WER").count();
+        assert_eq!(header_count, 1);
+    }
+
+    #[test]
+    fn test_to_csv_metadata_alphabetical_order() {
+        let metrics = OcrMetrics::zero();
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("z_last".to_string(), "value_z".to_string());
+        metadata.insert("a_first".to_string(), "value_a".to_string());
+        metadata.insert("m_middle".to_string(), "value_m".to_string());
+
+        let csv = metrics.to_csv(true, Some(&metadata));
+
+        // Vérifier que les métadonnées sont dans l'ordre alphabétique
+        let lines: Vec<&str> = csv.lines().collect();
+        let header = lines[0];
+
+        // Trouver les positions des colonnes
+        let pos_a = header.find("a_first").unwrap();
+        let pos_m = header.find("m_middle").unwrap();
+        let pos_z = header.find("z_last").unwrap();
+
+        // Vérifier l'ordre : a < m < z
+        assert!(pos_a < pos_m);
+        assert!(pos_m < pos_z);
     }
 }

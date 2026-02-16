@@ -193,6 +193,20 @@ struct Args {
     /// Exemple: --batch --output results/
     #[arg(short = 'o', long, requires = "batch")]
     output: Option<PathBuf>,
+
+    /// Exporter les métriques au format CSV
+    ///
+    /// Nécessite l'option --expected. Exporte les métriques de comparaison
+    /// dans un fichier CSV au lieu de les afficher dans le terminal.
+    /// Le fichier CSV contiendra une ligne d'en-têtes et une ligne de données.
+    ///
+    /// Compatible avec --batch pour exporter les métriques de plusieurs images
+    /// dans un seul fichier CSV (une ligne par image).
+    ///
+    /// Exemple: --expected expected.txt --csv-export metrics.csv
+    /// Exemple batch: --batch --expected expected.txt --csv-export results.csv
+    #[arg(long, value_name = "CSV_FILE", requires = "expected")]
+    csv_export: Option<PathBuf>,
 }
 
 /// Convertit un code PSM numérique en PageSegMode.
@@ -250,6 +264,9 @@ fn parse_binarization_method(method: &str) -> Result<BinarizationMethod> {
 ///
 /// Si un fichier de référence est fourni (--expected), affiche également
 /// les métriques de qualité (CER, WER) pour chaque mode.
+///
+/// Si --csv-export est fourni avec --expected, exporte toutes les métriques
+/// dans un fichier CSV avec une ligne par mode PSM.
 fn test_all_psm_modes(args: &Args) -> Result<()> {
     println!("═══════════════════════════════════════════════════════════");
     println!("         TEST DE TOUS LES MODES PSM (0-13)");
@@ -310,6 +327,10 @@ fn test_all_psm_modes(args: &Args) -> Result<()> {
         None
     };
 
+    // Buffer CSV pour accumuler les résultats
+    let mut csv_buffer = String::new();
+    let mut first_metric = true;
+
     // Tester chaque mode PSM
     for (psm_num, psm_name, psm_mode) in &all_psm_modes {
         println!("───────────────────────────────────────────────────────────");
@@ -365,6 +386,24 @@ fn test_all_psm_modes(args: &Args) -> Result<()> {
                 // Si un texte de référence est fourni, calculer les métriques
                 if let Some(ref expected) = expected_text {
                     let metrics = compare_ocr_result(&text, expected);
+
+                    // Si export CSV demandé, accumuler les métriques
+                    if args.csv_export.is_some() {
+                        let mut metadata = HashMap::new();
+                        metadata.insert(
+                            "image".to_string(),
+                            args.image.to_string_lossy().to_string(),
+                        );
+                        metadata.insert("psm".to_string(), psm_num.to_string());
+                        metadata.insert("psm_name".to_string(), psm_name.to_string());
+                        metadata.insert("language".to_string(), args.language.clone());
+                        metadata.insert("dpi".to_string(), args.dpi.to_string());
+                        metadata.insert("preprocess".to_string(), args.preprocess.to_string());
+
+                        csv_buffer.push_str(&metrics.to_csv(first_metric, Some(&metadata)));
+                        first_metric = false;
+                    }
+
                     println!();
                     println!("Métriques:");
                     println!("  CER:       {:.2}%", metrics.cer * 100.0);
@@ -397,6 +436,20 @@ fn test_all_psm_modes(args: &Args) -> Result<()> {
     println!("═══════════════════════════════════════════════════════════");
     println!("Test terminé. {} modes testés.", all_psm_modes.len());
     println!("═══════════════════════════════════════════════════════════");
+
+    // Écrire le fichier CSV si demandé
+    if let Some(csv_path) = &args.csv_export
+        && !csv_buffer.is_empty()
+    {
+        fs::write(csv_path, csv_buffer).with_context(|| {
+            format!(
+                "Impossible d'écrire le fichier CSV '{}'",
+                csv_path.display()
+            )
+        })?;
+        println!();
+        println!("✓ Métriques exportées vers: {}", csv_path.display());
+    }
 
     Ok(())
 }
@@ -774,15 +827,39 @@ fn main() -> Result<()> {
             )
         })?;
 
-        // Afficher les métriques (format détaillé ou simple)
-        if args.metrics {
+        let metrics = compare_ocr_result(&text, &expected_text);
+
+        // Export CSV si demandé
+        if let Some(csv_path) = args.csv_export {
+            // Créer les métadonnées
+            let mut metadata = HashMap::new();
+            metadata.insert(
+                "image".to_string(),
+                args.image.to_string_lossy().to_string(),
+            );
+            metadata.insert("language".to_string(), args.language.clone());
+            metadata.insert("psm".to_string(), args.psm.to_string());
+            metadata.insert("dpi".to_string(), args.dpi.to_string());
+            metadata.insert("preprocess".to_string(), args.preprocess.to_string());
+
+            // Générer le CSV
+            let csv_content = metrics.to_csv(true, Some(&metadata));
+
+            // Écrire dans le fichier
+            fs::write(&csv_path, csv_content).with_context(|| {
+                format!(
+                    "Impossible d'écrire le fichier CSV '{}'",
+                    csv_path.display()
+                )
+            })?;
+
+            println!("✓ Métriques exportées vers: {}", csv_path.display());
+        } else if args.metrics {
             // Rapport détaillé avec generate_diff_report()
             let report = generate_diff_report(&text, &expected_text);
             println!("{}", report);
         } else {
             // Affichage simple des métriques essentielles
-            let metrics = compare_ocr_result(&text, &expected_text);
-
             println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             println!("               RÉSULTATS DE LA COMPARAISON OCR");
             println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
