@@ -3,6 +3,7 @@
 //! Ce module fournit les structures et méthodes pour configurer
 //! le moteur OCR avec différents paramètres et modes de segmentation.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Mode de segmentation de page (Page Segmentation Mode).
@@ -26,7 +27,7 @@ use std::collections::HashMap;
 /// let mode = PageSegMode::Auto;
 /// let line_mode = PageSegMode::SingleLine;
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PageSegMode {
     /// PSM 0: Orientation et détection de script uniquement.
     OsdOnly,
@@ -133,7 +134,7 @@ impl PageSegMode {
 ///     tesseract_variables: variables,
 /// };
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcrConfig {
     /// Langue utilisée pour l'OCR (ex: "eng", "fra", "eng+fra").
     pub language: String,

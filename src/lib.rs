@@ -19,17 +19,20 @@
 //! # Modules
 //!
 //! - `config` : Configuration du moteur OCR et modes de segmentation
+//! - `config_file` : Chargement de configuration depuis des fichiers JSON/TOML
 //! - `ocr` : Moteur OCR principal pour l'extraction de texte
 //! - `preprocessing` : Prétraitement d'images pour améliorer la qualité OCR
 //! - `metrics` : Calcul de métriques de qualité OCR (CER, WER)
 
 pub mod config;
+pub mod config_file;
 pub mod metrics;
 pub mod ocr;
 pub mod preprocessing;
 
 // Exports publics pour faciliter l'utilisation de la bibliothèque
 pub use config::{OcrConfig, PageSegMode};
+pub use config_file::{AppConfig, load_config};
 pub use metrics::{
     OcrMetrics, TextError, calculate_cer, calculate_wer, compare_ocr_result, generate_diff_report,
     levenshtein_distance,

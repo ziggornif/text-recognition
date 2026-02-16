@@ -22,12 +22,13 @@
 
 use anyhow::Result;
 use image::{DynamicImage, GrayImage, imageops};
+use serde::{Deserialize, Serialize};
 
 /// Configuration pour le prétraitement d'images.
 ///
 /// Cette structure définit les paramètres à appliquer lors du prétraitement
 /// d'une image avant l'OCR.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreprocessingConfig {
     /// Active la conversion en niveaux de gris
     pub to_grayscale: bool,
@@ -69,7 +70,7 @@ impl Default for PreprocessingConfig {
 ///
 /// La binarisation transforme chaque pixel en noir ou blanc selon un seuil,
 /// ce qui peut améliorer la lisibilité du texte pour l'OCR.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinarizationMethod {
     /// Méthode d'Otsu - calcul automatique du seuil optimal
     Otsu,

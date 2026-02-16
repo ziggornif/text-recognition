@@ -3,14 +3,14 @@
 //! Ce binaire fournit une CLI simple pour utiliser le moteur OCR
 //! et extraire du texte depuis des images en utilisant Tesseract.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use text_recognition::{
     BinarizationMethod, OcrConfig, OcrEngine, PageSegMode, PreprocessingConfig, compare_ocr_result,
-    generate_diff_report,
+    generate_diff_report, load_config,
 };
 
 /// Outil d'extraction de texte depuis des images (OCR).
@@ -120,6 +120,18 @@ struct Args {
     /// et prétraitement d'image.
     #[arg(long)]
     auto_rotate: bool,
+
+    /// Fichier de configuration JSON ou TOML
+    ///
+    /// Permet de charger la configuration OCR et/ou de prétraitement depuis
+    /// un fichier externe plutôt que de tout passer en arguments CLI.
+    /// Les arguments CLI ont priorité sur les valeurs du fichier de configuration.
+    ///
+    /// Formats supportés : .json, .toml
+    ///
+    /// Exemple: --config config.toml
+    #[arg(long, value_name = "CONFIG_FILE")]
+    config: Option<PathBuf>,
 
     /// Fichier contenant le texte de référence attendu
     ///
@@ -374,30 +386,67 @@ fn main() -> Result<()> {
         return test_all_psm_modes(&args);
     }
 
-    // Créer la configuration OCR
-    let config = OcrConfig {
-        language: args.language,
-        page_seg_mode: psm_from_int(args.psm),
-        dpi: args.dpi,
-        tesseract_variables: HashMap::new(),
+    // Charger la configuration depuis un fichier si --config est fourni
+    let file_config = if let Some(ref config_path) = args.config {
+        let app_config = load_config(config_path)
+            .with_context(|| format!("Impossible de charger '{}'", config_path.display()))?;
+        Some(app_config)
+    } else {
+        None
+    };
+
+    // Créer la configuration OCR (fichier de config en base, arguments CLI en surcharge)
+    let config = {
+        let base = file_config
+            .as_ref()
+            .and_then(|c| c.ocr.clone())
+            .unwrap_or_default();
+
+        OcrConfig {
+            // Les arguments CLI ont priorité sur le fichier (valeurs non-défaut)
+            language: if args.language != "fra" {
+                args.language
+            } else {
+                base.language
+            },
+            page_seg_mode: if args.psm != 3 {
+                psm_from_int(args.psm)
+            } else {
+                base.page_seg_mode
+            },
+            dpi: if args.dpi != 300 { args.dpi } else { base.dpi },
+            tesseract_variables: base.tesseract_variables,
+        }
     };
 
     // Créer le moteur OCR avec ou sans prétraitement
     let engine = if args.preprocess {
-        // Construire la configuration de prétraitement
+        // Construire la configuration de prétraitement (fichier en base, CLI en surcharge)
+        let base_prep = file_config
+            .as_ref()
+            .and_then(|c| c.preprocessing.clone())
+            .unwrap_or_default();
+
         let binarization_method = parse_binarization_method(&args.binarize_method)?;
 
         let preprocess_config = PreprocessingConfig {
-            to_grayscale: args.grayscale,
-            binarize: args.binarize,
-            binarization_method,
-            adjust_contrast: args.contrast.is_some(),
-            contrast_factor: args.contrast.unwrap_or(1.0),
-            denoise: args.denoise,
-            deskew: args.deskew,
+            to_grayscale: args.grayscale || base_prep.to_grayscale,
+            binarize: args.binarize || base_prep.binarize,
+            binarization_method: if args.binarize {
+                binarization_method
+            } else {
+                base_prep.binarization_method
+            },
+            adjust_contrast: args.contrast.is_some() || base_prep.adjust_contrast,
+            contrast_factor: args.contrast.unwrap_or(base_prep.contrast_factor),
+            denoise: args.denoise || base_prep.denoise,
+            deskew: args.deskew || base_prep.deskew,
         };
 
         OcrEngine::with_preprocessing(config, preprocess_config)?
+    } else if let Some(prep) = file_config.as_ref().and_then(|c| c.preprocessing.clone()) {
+        // Pas de --preprocess CLI mais le fichier de config a une section preprocessing
+        OcrEngine::with_preprocessing(config, prep)?
     } else {
         OcrEngine::new(config)?
     };

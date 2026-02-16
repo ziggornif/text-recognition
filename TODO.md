@@ -107,7 +107,7 @@ Liste des tâches à réaliser pour le projet Text Recognition.
 ## Phase 7 : Extensions (Optionnel)
 
 - [x] **7.1** - Implémenter vraie fonction `deskew()` avec détection d'angle
-- [ ] **7.2** - Support de fichiers de configuration JSON/TOML
+- [x] **7.2** - Support de fichiers de configuration JSON/TOML
 - [ ] **7.3** - Mode batch (traiter plusieurs images)
 - [ ] **7.4** - Export de métriques en CSV
 - [ ] **7.5** - Visualisation des bounding boxes (format HOCR)
