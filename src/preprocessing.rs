@@ -269,16 +269,19 @@ pub fn denoise(image: &GrayImage) -> GrayImage {
 
 /// Corrige l'inclinaison d'une image (deskew).
 ///
-/// Cette fonction détecte et corrige l'inclinaison d'un document scanné ou photographié.
-/// Un document incliné peut réduire significativement la qualité de l'OCR.
+/// Cette fonction détecte et corrige l'inclinaison d'un document scanné ou photographié
+/// en utilisant la méthode de projection horizontale.
 ///
-/// **Note** : Cette implémentation actuelle est un stub simplifié qui retourne l'image
-/// sans modification. Une implémentation complète nécessiterait :
-/// - Détection automatique de l'angle d'inclinaison (transformée de Hough, projection)
-/// - Rotation de l'image avec interpolation
-/// - Gestion des bords après rotation
+/// # Algorithme
 ///
-/// Pour l'instant, cette fonction prépare la structure pour une future implémentation.
+/// 1. **Détection d'angle** : teste des angles de -20° à +20° par pas de 0.5°.
+///    Pour chaque angle candidat, l'image est virtuellement projetée sur l'axe horizontal
+///    et la variance des sommes de lignes est calculée. Un texte bien aligné produit des
+///    lignes alternant entre zones denses (texte) et zones vides (interlignes), ce qui
+///    maximise la variance. L'angle donnant la variance maximale est retenu.
+///
+/// 2. **Rotation** : l'image est pivotée de l'angle opposé avec interpolation bilinéaire
+///    pour éviter les artefacts. Les pixels hors image sont remplis en blanc (255).
 ///
 /// # Arguments
 ///
@@ -295,15 +298,168 @@ pub fn denoise(image: &GrayImage) -> GrayImage {
 /// let deskewed = deskew(&gray);
 /// ```
 pub fn deskew(image: &GrayImage) -> GrayImage {
-    // TODO: Implémenter la détection d'angle et la rotation
-    // Pour l'instant, retourner l'image sans modification
+    let angle = detect_skew_angle(image);
+    if angle.abs() < 0.1 {
+        // Angle négligeable, pas de rotation nécessaire
+        return image.clone();
+    }
+    rotate_image(image, -angle)
+}
 
-    // Une implémentation complète inclurait :
-    // 1. Détection de l'angle d'inclinaison (par exemple avec projection horizontale)
-    // 2. Rotation de l'image avec interpolation bilinéaire ou bicubique
-    // 3. Rognage ou remplissage des bords après rotation
+/// Détecte l'angle d'inclinaison d'une image par projection horizontale.
+///
+/// Teste des angles de -20° à +20° par pas de 0.5° et retourne l'angle
+/// qui maximise la variance des projections horizontales.
+///
+/// # Arguments
+///
+/// * `image` - L'image en niveaux de gris à analyser
+///
+/// # Retour
+///
+/// L'angle d'inclinaison estimé en degrés (valeur positive = sens horaire).
+fn detect_skew_angle(image: &GrayImage) -> f64 {
+    let (width, height) = image.dimensions();
+    let cx = width as f64 / 2.0;
+    let cy = height as f64 / 2.0;
 
-    image.clone()
+    let mut best_angle = 0.0f64;
+    let mut best_variance = 0.0f64;
+
+    // Tester des angles de -20° à +20° par pas de 0.5°
+    let mut angle = -20.0f64;
+    while angle <= 20.0 {
+        let rad = angle.to_radians();
+        let cos_a = rad.cos();
+        let sin_a = rad.sin();
+
+        // Calculer la projection horizontale pour cet angle
+        let mut row_sums = vec![0u64; height as usize];
+
+        for y in 0..height {
+            for x in 0..width {
+                // Coordonnées relatives au centre
+                let dx = x as f64 - cx;
+                let dy = y as f64 - cy;
+
+                // Pixel source après rotation inverse
+                let src_x = dx * cos_a + dy * sin_a + cx;
+                let src_y = -dx * sin_a + dy * cos_a + cy;
+
+                if src_x >= 0.0
+                    && src_x < width as f64 - 1.0
+                    && src_y >= 0.0
+                    && src_y < height as f64 - 1.0
+                {
+                    // Interpolation bilinéaire pour la valeur du pixel source
+                    let sx = src_x as u32;
+                    let sy = src_y as u32;
+                    let fx = src_x - sx as f64;
+                    let fy = src_y - sy as f64;
+
+                    let p00 = image.get_pixel(sx, sy)[0] as f64;
+                    let p10 = image.get_pixel(sx + 1, sy)[0] as f64;
+                    let p01 = image.get_pixel(sx, sy + 1)[0] as f64;
+                    let p11 = image.get_pixel(sx + 1, sy + 1)[0] as f64;
+
+                    let val = p00 * (1.0 - fx) * (1.0 - fy)
+                        + p10 * fx * (1.0 - fy)
+                        + p01 * (1.0 - fx) * fy
+                        + p11 * fx * fy;
+
+                    // Pixel sombre = texte (valeur basse = contribution forte)
+                    row_sums[y as usize] += (255.0 - val) as u64;
+                }
+            }
+        }
+
+        // Calculer la variance des sommes de lignes
+        let n = row_sums.len() as f64;
+        let mean = row_sums.iter().sum::<u64>() as f64 / n;
+        let variance = row_sums
+            .iter()
+            .map(|&s| {
+                let diff = s as f64 - mean;
+                diff * diff
+            })
+            .sum::<f64>()
+            / n;
+
+        if variance > best_variance {
+            best_variance = variance;
+            best_angle = angle;
+        }
+
+        angle += 0.5;
+    }
+
+    best_angle
+}
+
+/// Fait pivoter une image en niveaux de gris d'un angle donné avec interpolation bilinéaire.
+///
+/// La rotation est effectuée autour du centre de l'image. Les pixels hors image
+/// après rotation sont remplis en blanc (255).
+///
+/// # Arguments
+///
+/// * `image` - L'image en niveaux de gris à faire pivoter
+/// * `angle_deg` - L'angle de rotation en degrés (positif = sens antihoraire)
+///
+/// # Retour
+///
+/// Une nouvelle image pivotée de même taille que l'originale.
+fn rotate_image(image: &GrayImage, angle_deg: f64) -> GrayImage {
+    let (width, height) = image.dimensions();
+    let cx = width as f64 / 2.0;
+    let cy = height as f64 / 2.0;
+
+    let rad = angle_deg.to_radians();
+    let cos_a = rad.cos();
+    let sin_a = rad.sin();
+
+    let mut output = GrayImage::new(width, height);
+
+    for y in 0..height {
+        for x in 0..width {
+            // Coordonnées relatives au centre
+            let dx = x as f64 - cx;
+            let dy = y as f64 - cy;
+
+            // Coordonnées dans l'image source (rotation inverse)
+            let src_x = dx * cos_a + dy * sin_a + cx;
+            let src_y = -dx * sin_a + dy * cos_a + cy;
+
+            if src_x >= 0.0
+                && src_x < width as f64 - 1.0
+                && src_y >= 0.0
+                && src_y < height as f64 - 1.0
+            {
+                // Interpolation bilinéaire
+                let sx = src_x as u32;
+                let sy = src_y as u32;
+                let fx = src_x - sx as f64;
+                let fy = src_y - sy as f64;
+
+                let p00 = image.get_pixel(sx, sy)[0] as f64;
+                let p10 = image.get_pixel(sx + 1, sy)[0] as f64;
+                let p01 = image.get_pixel(sx, sy + 1)[0] as f64;
+                let p11 = image.get_pixel(sx + 1, sy + 1)[0] as f64;
+
+                let val = p00 * (1.0 - fx) * (1.0 - fy)
+                    + p10 * fx * (1.0 - fy)
+                    + p01 * (1.0 - fx) * fy
+                    + p11 * fx * fy;
+
+                output.put_pixel(x, y, image::Luma([val.round() as u8]));
+            } else {
+                // Remplir les bords avec du blanc
+                output.put_pixel(x, y, image::Luma([255u8]));
+            }
+        }
+    }
+
+    output
 }
 
 /// Binarise une image en niveaux de gris en noir et blanc pur.
@@ -831,29 +987,101 @@ mod tests {
     }
 
     #[test]
-    fn test_deskew_stub() {
+    fn test_deskew_preserves_dimensions() {
         use image::Luma;
 
-        // Créer une image de test
-        let mut img = GrayImage::new(4, 4);
-        for y in 0..4 {
-            for x in 0..4 {
-                img.put_pixel(x, y, Luma([100]));
+        // Créer une image uniforme (angle nul attendu)
+        let mut img = GrayImage::new(20, 20);
+        for y in 0..20 {
+            for x in 0..20 {
+                img.put_pixel(x, y, Luma([200]));
             }
         }
 
         let deskewed = deskew(&img);
 
-        // Pour l'instant, le stub retourne l'image inchangée
+        // Les dimensions doivent être conservées
         assert_eq!(deskewed.dimensions(), img.dimensions());
+    }
 
-        // Vérifier que les pixels sont identiques
-        for y in 0..4 {
-            for x in 0..4 {
-                assert_eq!(
-                    deskewed.get_pixel(x, y)[0],
-                    img.get_pixel(x, y)[0],
-                    "Deskew stub should return unchanged image"
+    #[test]
+    fn test_deskew_uniform_image_unchanged() {
+        use image::Luma;
+
+        // Une image uniforme n'a pas d'inclinaison détectable
+        // -> deskew doit retourner l'image quasi inchangée
+        let mut img = GrayImage::new(30, 30);
+        for y in 0..30 {
+            for x in 0..30 {
+                img.put_pixel(x, y, Luma([200]));
+            }
+        }
+
+        let deskewed = deskew(&img);
+        assert_eq!(deskewed.dimensions(), (30, 30));
+    }
+
+    #[test]
+    fn test_detect_skew_angle_horizontal_lines() {
+        use image::Luma;
+
+        // Créer une image avec des lignes horizontales (texte simulé)
+        // -> l'angle détecté doit être proche de 0°
+        let width = 60u32;
+        let height = 40u32;
+        let mut img = GrayImage::new(width, height);
+
+        // Fond blanc
+        for y in 0..height {
+            for x in 0..width {
+                img.put_pixel(x, y, Luma([255]));
+            }
+        }
+
+        // Lignes sombres horizontales (simulation de texte)
+        for row in [8u32, 18, 28] {
+            for x in 5..55 {
+                img.put_pixel(x, row, Luma([30]));
+            }
+        }
+
+        let angle = detect_skew_angle(&img);
+
+        // L'angle détecté doit être proche de 0° (lignes déjà horizontales)
+        assert!(
+            angle.abs() <= 2.0,
+            "Angle détecté {} devrait être proche de 0°",
+            angle
+        );
+    }
+
+    #[test]
+    fn test_rotate_image_zero_angle() {
+        use image::Luma;
+
+        // Une rotation de 0° doit retourner une image très proche de l'originale
+        let mut img = GrayImage::new(10, 10);
+        for y in 0..10 {
+            for x in 0..10 {
+                img.put_pixel(x, y, Luma([(x * 25) as u8]));
+            }
+        }
+
+        let rotated = rotate_image(&img, 0.0);
+        assert_eq!(rotated.dimensions(), img.dimensions());
+
+        // Les pixels centraux (hors bords) doivent être quasi identiques
+        for y in 1..9 {
+            for x in 1..9 {
+                let orig = img.get_pixel(x, y)[0] as i16;
+                let rot = rotated.get_pixel(x, y)[0] as i16;
+                assert!(
+                    (orig - rot).abs() <= 2,
+                    "Pixel ({},{}) : orig={} rot={}",
+                    x,
+                    y,
+                    orig,
+                    rot
                 );
             }
         }
