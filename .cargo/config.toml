@@ -1,5 +1,5 @@
 # Configuration Cargo pour le projet text-recognition
-
-[env]
-# Fix pour bindgen sur systèmes 64-bit Linux
-BINDGEN_EXTRA_CLANG_ARGS = "--target=x86_64-unknown-linux-gnu"
+#
+# Les variables d'environnement spécifiques à l'OS (SDKROOT, BINDGEN_EXTRA_CLANG_ARGS)
+# sont gérées par le Makefile à la racine du projet.
+# Utiliser `make build` plutôt que `cargo build` directement.
