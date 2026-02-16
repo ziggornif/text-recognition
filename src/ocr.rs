@@ -9,6 +9,7 @@ use crate::preprocessing::{PreprocessingConfig, preprocess_image};
 use anyhow::{Context, Result};
 use image::DynamicImage;
 use std::path::Path;
+use std::process::Command;
 
 /// Moteur OCR principal basé sur Tesseract.
 ///
@@ -109,11 +110,77 @@ impl OcrEngine {
         })
     }
 
+    /// Détecte l'orientation et le script d'une image via le binaire Tesseract (PSM 0).
+    ///
+    /// Cette méthode appelle le binaire `tesseract` en ligne de commande avec `--psm 0`
+    /// pour obtenir les informations d'orientation et de script sans effectuer d'OCR.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Chemin vers l'image à analyser
+    ///
+    /// # Exemple
+    ///
+    /// ```no_run
+    /// use text_recognition::ocr::OcrEngine;
+    /// use text_recognition::config::{OcrConfig, PageSegMode};
+    /// use std::path::Path;
+    ///
+    /// let config = OcrConfig {
+    ///     page_seg_mode: PageSegMode::OsdOnly,
+    ///     ..OcrConfig::default()
+    /// };
+    /// let engine = OcrEngine::new(config).expect("Échec initialisation OCR");
+    /// let result = engine.detect_orientation(Path::new("image.png")).unwrap();
+    /// println!("{}", result);
+    /// ```
+    ///
+    /// # Erreurs
+    ///
+    /// Retourne une erreur si :
+    /// - Le binaire `tesseract` n'est pas installé ou introuvable
+    /// - Le fichier image n'existe pas ou est illisible
+    /// - La détection échoue (image trop petite, format non supporté, etc.)
+    pub fn detect_orientation(&self, path: &Path) -> Result<String> {
+        let path_str = path.to_str().context("Chemin invalide")?;
+
+        let output = Command::new("tesseract")
+            // OSD requiert obligatoirement le modèle "osd", indépendamment de la langue configurée.
+            // Utiliser une autre langue (ex: "fra") échouerait avec une erreur Tesseract.
+            .args([path_str, "stdout", "--psm", "0", "-l", "osd"])
+            .output()
+            .context(
+                "Impossible de lancer le binaire tesseract. Est-il installé et dans le PATH ?",
+            )?;
+
+        // La sortie utile est sur stdout ; les warnings vont sur stderr
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+        // Filtrer les lignes pertinentes (ignorer les lignes vides)
+        let info: String = stdout
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if info.is_empty() {
+            anyhow::bail!(
+                "Aucune information d'orientation retournée par Tesseract. \
+                 Assurez-vous que l'image est lisible et que les données linguistiques sont installées."
+            );
+        }
+
+        Ok(info)
+    }
+
     /// Extrait le texte d'une image.
     ///
     /// Cette méthode charge une image depuis un fichier et utilise Tesseract
     /// pour extraire son contenu textuel. Elle applique automatiquement toutes
     /// les variables de configuration Tesseract définies dans `OcrConfig`.
+    ///
+    /// En mode `OsdOnly` (PSM 0), délègue vers [`detect_orientation()`](Self::detect_orientation)
+    /// et retourne les informations d'orientation et de script.
     ///
     /// # Arguments
     ///
@@ -155,6 +222,14 @@ impl OcrEngine {
         // Vérifier que le fichier existe
         if !path.exists() {
             anyhow::bail!("Le fichier '{}' n'existe pas", path.display());
+        }
+
+        // En mode OSD uniquement, déléguer vers detect_orientation()
+        if matches!(
+            self.config.page_seg_mode,
+            crate::config::PageSegMode::OsdOnly
+        ) {
+            return self.detect_orientation(path);
         }
 
         // Si le prétraitement est activé, charger et prétraiter l'image
